@@ -1,0 +1,6 @@
+git add .
+git commit -am"auto"
+git push heroku master
+heroku ps:scale worker=1
+heroku logs --tail
+

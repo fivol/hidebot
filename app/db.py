@@ -7,7 +7,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker, relationship
 from sqlalchemy_mixins import ActiveRecordMixin, ReprMixin, TimestampsMixin
 import typing as t
 
-from app.config import PG_URL
+from app.config import PG_URL, TEST
 
 Base = declarative_base()
 
@@ -84,4 +84,4 @@ def stop_session():
 
 
 engine = create_engine(PG_URL, echo=False)
-init_session(engine, drop=True)
+init_session(engine, drop=TEST)

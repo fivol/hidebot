@@ -1,8 +1,10 @@
 import math
+from concurrent.futures import as_completed
+from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum, auto
 import typing as t
 from telebot.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, \
-    ReplyKeyboardMarkup, KeyboardButton
+    ReplyKeyboardMarkup, KeyboardButton, Message
 
 from app.base_scenario import BaseScenario, RedirectException
 from app.config import CONTENT_ITEMS_LIMIT
@@ -199,6 +201,7 @@ class ExploreRoomScenario(BaseScenario):
 
     def _delete_temp_messages(self):
         old_content = self.handler.get_messages_by_key(self.TEMP_MESSAGES_KEY)
+        print(old_content)
         self.delete_messages(old_content)
 
     def print_content_block(self, page_num=0):
@@ -227,17 +230,23 @@ class ExploreRoomScenario(BaseScenario):
             'video': self.bot.send_video,
             'video_note': self.bot.send_video_note,
         }
-        for item in items:
-            if item.content_type not in content_type_method:
-                continue
-            send_method = content_type_method[item.content_type]
-            message = send_method(self.chat_id, item.file_id or item.text, disable_notification=True)
-            self.handler.add_message(message.id, key=self.TEMP_MESSAGES_KEY)
+        with ThreadPoolExecutor() as executor:
+            tasks = []
+            for item in items:
+                if item.content_type not in content_type_method:
+                    continue
+                send_method = content_type_method[item.content_type]
+                task = executor.submit(send_method, self.chat_id, item.file_id or item.text, disable_notification=True)
+                tasks.append(task)
+            for task in as_completed(tasks):
+                message = task.result()
+                self.handler.add_message(message.id, key=self.TEMP_MESSAGES_KEY)
 
     def default_response(self):
         self.add_content()
 
     def to_menu(self):
+        self.delete_current_message()
         self._delete_temp_messages()
         raise RedirectException(MainMenuScenario, MainMenuScenario.open)
 

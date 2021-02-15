@@ -10,6 +10,8 @@ from app.config import logger
 from app.db import DBMessage
 from app.handlers import Handler
 
+from concurrent.futures import ThreadPoolExecutor
+
 
 @dataclass
 class BotSignal:
@@ -112,7 +114,6 @@ class MemberStateHandler(dict):
             state_dict['scenario'] = self.to_str(state_dict['scenario'])
         if state_dict.get('appeal'):
             state_dict['appeal'] = self.to_str(state_dict['appeal'])
-        print('new state', state_dict)
         self.__state = state_dict
         assert isinstance(state_dict, dict)
         super().__init__(**state_dict)
@@ -144,7 +145,6 @@ class BaseScenario:
     """
 
     def __init__(self, message=None, call=None, bot=None, handler=None, first_time=True):
-        print("CREATE BASE SCENARIO")
         self.message: Message = message
         self.call: CallbackQuery = call
         self.text: str = self.message.text or ''
@@ -161,12 +161,12 @@ class BaseScenario:
             self._handle_receive_message()
 
     def _handle_receive_message(self):
-        print('RECEIVE')
         self.delete_messages(self.handler.get_messages_by_key(SINGLE_SHOW_KEY))
         self.handler.add_message(
             message_id=self.message.id,
             is_from_bot=False,
-            key=self.input_messages_key
+            key=self.input_messages_key,
+            text=self.text
         )
 
     def send_message(self, text, *args, reply_markup=None, key=None, auto_delete=False, **kwargs):
@@ -181,11 +181,14 @@ class BaseScenario:
         reply_markup = reply_markup or self.keyboard
 
         message = self.bot.send_message(self.chat_id, text, *args, reply_markup=reply_markup, **kwargs)
-        self.handler.add_message(message.id, is_from_bot=True, key=key)
+        self.handler.add_message(message.id, is_from_bot=True, key=key, text=text)
         return message
 
     def delete_message(self, message_id: int, delete_from_db=True):
-        deleted = self.handler.delete_message(message_id)
+        deleted = True
+
+        if delete_from_db:
+            deleted = self.handler.delete_message(message_id)
         if deleted:
             self.bot.delete_message(self.chat_id, message_id)
 
@@ -196,9 +199,15 @@ class BaseScenario:
         self.delete_message(message_id=self.message.id)
 
     def delete_messages(self, messages: t.List[DBMessage]):
-        for message in messages:
-            self.delete_message(message.message_id, delete_from_db=False)
-        self.handler.delete_messages([m.message_id for m in messages])
+        if not messages:
+            return
+        # for message in messages:
+        #     self.delete_message(message.message_id, delete_from_db=False)
+            # executor.submit(self.delete_message, message_id=message.id, delete_from_db=False)
+        with ThreadPoolExecutor() as executor:
+            for message in messages:
+                executor.submit(self.delete_message, message_id=message.message_id, delete_from_db=False)
+        self.handler.delete_messages([m.id for m in messages])
 
     def send_file(self, file_id, content_type, caption=None):
         # TODO implement sending file
@@ -219,7 +228,6 @@ class BaseScenario:
             **curr_member_state,
             **dict(MemberStateHandler(*args, **kwargs))
         }
-        print(new_chat_state)
         self.handler.member.state = new_chat_state
 
     @property

@@ -62,13 +62,14 @@ class Handler:
                 ).on_conflict_do_nothing()
             )
 
-    def add_message(self, message_id, is_from_bot=False, key=None):
+    def add_message(self, message_id, is_from_bot=False, key=None, text=None):
         self.session.execute(
             insert(DBMessage.__table__).values(
                 message_id=message_id,
                 member_id=self.member.id,
                 is_from_bot=is_from_bot,
-                key=key
+                key=key,
+                text=text
             ).on_conflict_do_nothing()
         )
 
@@ -136,9 +137,13 @@ class Handler:
         return bool(message)
 
     def delete_messages(self, ids: t.List[int]):
+        """Принимает список айдишников сообщений
+        и удаляет их все из базы.
+        !!!ID базы данных, а не телеги
+        """
         DBMessage.query.filter(
-            DBMessage.message_id.in_(ids)
-        )
+            DBMessage.id.in_(ids)
+        ).delete(synchronize_session=False)
 
     def delete_room(self):
         self.room.delete()

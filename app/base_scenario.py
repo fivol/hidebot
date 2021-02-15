@@ -165,16 +165,15 @@ class BaseScenario:
         self.handler.add_message(
             message_id=self.message.id,
             is_from_bot=False,
-            key=self.input_messages_key,
+            key=self.incoming_key,
             text=self.text
         )
 
     def send_message(self, text, *args, reply_markup=None, key=None, auto_delete=False, **kwargs):
         if not text:
             return
-        # if not reply_markup:
-        #     auto_delete = True
 
+        key = key or self.default_outgoing_key
         if auto_delete:
             key = SINGLE_SHOW_KEY
 
@@ -203,7 +202,7 @@ class BaseScenario:
             return
         # for message in messages:
         #     self.delete_message(message.message_id, delete_from_db=False)
-            # executor.submit(self.delete_message, message_id=message.id, delete_from_db=False)
+        # executor.submit(self.delete_message, message_id=message.id, delete_from_db=False)
         with ThreadPoolExecutor() as executor:
             for message in messages:
                 executor.submit(self.delete_message, message_id=message.message_id, delete_from_db=False)
@@ -282,9 +281,13 @@ class BaseScenario:
         (в классе наследнике можно указывать keyboard = ....)
     """
 
-    input_messages_key = None
+    incoming_key = None
     """
         Для каждого приходящего или отправленного сообщения ставится в соответствие ключ в базе данных
         Значение этого поля будет выставлено автоматически для сообщений пришедших в данном сценарии
         (переопределить в наследнике если необходимо)
+    """
+    default_outgoing_key = None
+    """
+        Если в функцию send_message не передан ключ, то по умолчанию ставится этот
     """

@@ -270,18 +270,6 @@ class ExploreRoomScenario(BaseScenario):
         'Удалить комнату': delete_room
     }
 
-    input_messages_key = TEMP_MESSAGES_KEY
+    incoming_key = TEMP_MESSAGES_KEY
 
-
-class AddContentScenario(BaseScenario):
-    def add_content(self):
-        content_type = self.message.content_type
-        file_id = None
-        if content_type in ['video_note', 'voice', 'document', 'audio', 'video']:
-            file_id = getattr(self.message, content_type).file_id
-        elif content_type == 'photo':
-            file_id = getattr(self.message, content_type)[-1].file_id
-        if file_id or self.text:
-            self.handler.add_content(content_type, self.text, file_id)
-
-        self.send_message('Добавлено')
+    default_outgoing_key = TEMP_MESSAGES_KEY

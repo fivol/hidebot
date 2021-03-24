@@ -51,7 +51,12 @@ class HelloScenario(BaseScenario):
     }
 
 
-class MainMenuScenario(BaseScenario):
+class ReceiveForwardedContentScenario(BaseScenario):
+    def default_response(self):
+        pass
+
+
+class MainMenuScenario(ReceiveForwardedContentScenario):
     keyboard = ReplyKeyboardMarkup(True)
     keyboard.add(
         KeyboardButton('Список комнат'),
@@ -60,7 +65,6 @@ class MainMenuScenario(BaseScenario):
 
     def after(self):
         pass
-        # self.delete_messages(self.handler.get_old_messages())
 
     def create_room(self):
         self.delete_current_message()
@@ -169,7 +173,7 @@ class MainMenuScenario(BaseScenario):
     }
 
 
-class ExploreRoomScenario(BaseScenario):
+class ExploreRoomScenario(ReceiveForwardedContentScenario):
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add(KeyboardButton('Главное меню'))
 

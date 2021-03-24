@@ -169,7 +169,7 @@ class BaseScenario:
             text=self.text
         )
 
-    def send_message(self, text, *args, reply_markup=None, key=None, auto_delete=False, content_id: int = None,
+    def send_message(self, text, *args, reply_markup=None, key=None, auto_delete=True, content_id: int = None,
                      **kwargs):
         if not text:
             return

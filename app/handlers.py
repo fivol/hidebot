@@ -75,6 +75,10 @@ class Handler:
         )
 
     def create_room(self, is_private=None, key=None, name=None) -> t.Optional[DBRoom]:
+        if isinstance(name, str):
+            name = name.lower()
+        if isinstance(key, str):
+            key = key.lower()
         try:
             return DBRoom.create(is_private=is_private, key=key, name=name, member_id=self.member.id)
         except IntegrityError:
@@ -83,6 +87,10 @@ class Handler:
     def get_room(self, *, key: str = None, name: str = None) -> t.Optional[DBRoom]:
         if not key and not name:
             return None
+        if isinstance(name, str):
+            name = name.lower()
+        if isinstance(key, str):
+            key = key.lower()
         return DBRoom.query.filter(
             DBRoom.member == self.member,
             or_(
@@ -184,4 +192,18 @@ class Handler:
             room.key = nickname
         else:
             room.name = nickname
+        room.save()
+
+    def change_room_privacy(self, room_id: int):
+        room = DBRoom.query.filter(DBRoom.id == room_id).first()
+        if not room:
+            raise KeyError
+        if room.is_private:
+            room.is_private = False
+            room.name = room.key
+            room.key = None
+        else:
+            room.is_private = True
+            room.key = room.name
+            room.name = None
         room.save()

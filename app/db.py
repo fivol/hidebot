@@ -85,4 +85,4 @@ def stop_session():
 
 
 engine = create_engine(PG_URL, echo=False)
-init_session(engine, drop=False)
+init_session(engine, drop=TEST)

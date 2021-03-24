@@ -6,7 +6,7 @@ import typing as t
 
 from sqlalchemy.exc import IntegrityError
 from telebot.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, \
-    ReplyKeyboardMarkup, KeyboardButton
+    InlineKeyboardMarkup, InlineKeyboardButton
 
 from app.base_scenario import BaseScenario, RedirectException
 from app.config import CONTENT_ITEMS_LIMIT
@@ -56,21 +56,23 @@ class RoomsListUtils(BaseScenario):
         rooms = self.handler.get_public_rooms()
         keyboard = InlineKeyboardMarkup()
         for room in rooms:
-            keyboard.add(InlineKeyboardButton(room.name, callback_data=room.name))
+            keyboard.add(InlineKeyboardButton(room.name.capitalize(), callback_data=room.name))
         keyboard.add(InlineKeyboardButton('Назад', callback_data='back'))
         self.send_message('Пришлите ключ текстом, если хотите указать приватную комнату. Публичные:',
-                          reply_markup=keyboard)
+                          reply_markup=keyboard if len(rooms) else ReplyKeyboardRemove(), auto_delete=True)
+        if len(rooms) == 0:
+            self.send_message('У вас пока нет ни одной публичной комнаты', reply_markup=keyboard)
 
     def default_response(self):
         pass
 
 
 class RoomSettingsScenario(RoomsListUtils):
-    keyboard = ReplyKeyboardMarkup(True)
-    keyboard.add(KeyboardButton('Удалить'))
-    keyboard.add(KeyboardButton('Переименовать'))
-    keyboard.add(KeyboardButton('Поменять видимость'))
-    keyboard.add(KeyboardButton('Меню'))
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineKeyboardButton('Удалить', callback_data='Удалить'),
+                 InlineKeyboardButton('Переименовать', callback_data='Переименовать'))
+    keyboard.add(InlineKeyboardButton('Поменять видимость', callback_data='Поменять видимость'))
+    keyboard.add(InlineKeyboardButton('Главное меню', callback_data='Меню'))
 
     # Do not use Enum in this
     class RoomAction:
@@ -79,8 +81,6 @@ class RoomSettingsScenario(RoomsListUtils):
         change_visibility = 'VISIBILITY'
 
     def open(self):
-        self.delete_current_message()
-
         self.send_message('Выберите действие', auto_delete=True)
 
     def delete_room(self):
@@ -101,40 +101,66 @@ class RoomSettingsScenario(RoomsListUtils):
     def _confirm_delete_room(self):
         if self.call_data == 'yes':
             self.handler.delete_room(self.state.get('room_id'))
-            self.send_message('Удалена', auto_delete=True)
+            self.send_message('Комната удалена', auto_delete=True)
         else:
             self.open()
 
     def _confirm_rename_room(self):
+        self.set_state(action=None)
         new_name = self.text
         if not new_name:
             self.send_message('Нужен новый ключ для комнаты', auto_delete=True)
 
         self.handler.rename_room(self.state.get('room_id'), new_name)
-        self.send_message('Комната теперь называется {}'.format(new_name))
+        self.delete_current_message()
+        self.send_message('Комната теперь называется {}'.format(new_name), auto_delete=True)
+
+    def _confirm_change_room_privacy(self):
+        if self.call_data == 'yes':
+            self.handler.change_room_privacy(self.state.get('room_id'))
+            self.set_state(action=None)
+            self.send_message('Готово!')
+        else:
+            self.open()
 
     def default_response(self):
-        self.delete_current_message()
         room_key = self.call_data or self.text
+        if self.text and not self.call_data:
+            self.delete_current_message()
         room = self.handler.get_room(key=room_key, name=room_key)
         if not room:
-            self.send_message('Такой комнаты не существует')
+            self.send_message('Такой комнаты не существует', auto_delete=True)
             return
+
+        yesno_keyboard = InlineKeyboardMarkup()
+        yesno_keyboard.add(InlineKeyboardButton('Да', callback_data='yes'),
+                           InlineKeyboardButton('Нет', callback_data='no'))
 
         action = self.state.get('action')
         if action == self.RoomAction.delete:
             # Проверка, действительно ли пользователь хочет удалить комнату
-            keyboard = InlineKeyboardMarkup()
-            keyboard.add(InlineKeyboardButton('Да', callback_data='yes'),
-                         InlineKeyboardButton('Нет', callback_data='no'))
             self.set_state(self, self._confirm_delete_room, room_id=room.id)
             self.send_message('Вы уверены, что хотите безвозвратно удалить комнату {}?'.format(room_key),
-                              reply_markup=keyboard, auto_delete=True)
+                              reply_markup=yesno_keyboard, auto_delete=True)
         if action == self.RoomAction.rename:
             # Переименовать комнату
             self.set_state(self, self._confirm_rename_room, room_id=room.id)
             self.send_message('Введите новое название (если комната приватная, для нее будет заменен ключ доступа)',
                               reply_markup=ReplyKeyboardRemove(), auto_delete=True)
+
+        if action == self.RoomAction.change_visibility:
+            # Изменить видимость комнаты
+            self.set_state(self, self._confirm_change_room_privacy, room_id=room.id)
+            if room.is_private:
+                self.send_message(
+                    'Вы уверены, что хотите сделать комнату "{}" публичной? Ее можно будет переименовать'.format(
+                        room_key),
+                    reply_markup=yesno_keyboard, auto_delete=True)
+            else:
+                self.send_message(
+                    'Вы уверены, что хотите сделать комнату "{}" приватной? '
+                    'Ее ключ можно будет поменять = Переименовать)'.format(room_key),
+                    reply_markup=yesno_keyboard, auto_delete=True)
 
     routes = {
         'back': open,
@@ -155,23 +181,24 @@ class ReceiveForwardedContentScenario(BaseScenario):
 
 
 class MainMenuScenario(RoomsListUtils):
-    keyboard = ReplyKeyboardMarkup(True)
+    keyboard = InlineKeyboardMarkup()
     keyboard.add(
-        KeyboardButton('Список комнат'),
+        InlineKeyboardButton('Список комнат', callback_data='Список комнат'),
     )
     keyboard.add(
-        KeyboardButton('Создать комнату'),
-        KeyboardButton('Настройки комнат'),
+        InlineKeyboardButton('Создать комнату', callback_data='Создать комнату'),
+        InlineKeyboardButton('Настройки комнат', callback_data='Настройки комнат'),
     )
 
     def after(self):
         pass
 
     def create_room(self):
-        self.delete_current_message()
+        # self.delete_current_message()
         new_room_keyboard = InlineKeyboardMarkup()
         new_room_keyboard.add(InlineKeyboardButton('Публичную', callback_data='create_public_room'),
                               InlineKeyboardButton('Приватную', callback_data='create_private_room'))
+        new_room_keyboard.add(InlineKeyboardButton('Главное меню', callback_data='menu'))
         self.send_message('Хотите создать публичную или приватную?', reply_markup=new_room_keyboard, auto_delete=True)
 
     def room_created(self, name=''):
@@ -181,7 +208,7 @@ class MainMenuScenario(RoomsListUtils):
         self.send_message(text, auto_delete=True)
 
     def create_public_room(self):
-        self.send_message('Введите название комнаты', auto_delete=True)
+        self.send_message('Введите название комнаты', auto_delete=True, reply_markup=ReplyKeyboardRemove())
         self.set_state(self, self.public_room_done)
 
     def public_room_done(self):
@@ -229,7 +256,9 @@ class MainMenuScenario(RoomsListUtils):
         self.send_message('Главное меню', auto_delete=True)
 
     def try_open_room(self):
-        self.delete_current_message()
+        if self.text and not self.call_data:
+            self.delete_current_message()
+
         room = self.handler.get_room(name=self.call_data or self.text, key=self.text)
         if not room:
             self.send_message('Комната не найдена', auto_delete=True)
@@ -240,20 +269,7 @@ class MainMenuScenario(RoomsListUtils):
     def default_response(self):
         self.try_open_room()
 
-    def confirm_delete_room(self):
-        if self.text == self.handler.room.name or self.text == self.handler.room.key:
-            self.handler.delete_room()
-            self.send_message('Комната удалена')
-        else:
-            self.send_message('Имя неверно, удаление отклонено')
-
-    def delete_room(self):
-        self.send_message(
-            'Если вы действительно хотите удалить комнату со всем ее содержимым, пришлите ее название / ключ')
-        self.set_state(self, self.confirm_delete_room)
-
     def open_room(self):
-        self.delete_current_message()
         self._send_rooms_list()
 
     def to_settings(self):
@@ -264,13 +280,15 @@ class MainMenuScenario(RoomsListUtils):
     routes = {
         'Создать комнату': create_room,
         'Список комнат': open_room,
-        'Настройки комнат': to_settings
+        'Настройки комнат': to_settings,
+        'menu': open,
+        'back': open,
     }
 
 
 class ExploreRoomScenario(ReceiveForwardedContentScenario):
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton('Главное меню'))
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineKeyboardButton('Главное меню', callback_data='Главное меню'))
 
     available_content_types = [
         'text', 'photo', 'voice', 'video', 'video_note'
@@ -324,16 +342,16 @@ class ExploreRoomScenario(ReceiveForwardedContentScenario):
                 raise AssertionError
 
             self.delete_message(target_message.id, delete_from_db=False)
-            self.send_message('Удалено', auto_delete=True)
+            self.send_message('Удалено', auto_delete=True, reply_markup=ReplyKeyboardRemove())
         except (IntegrityError, AssertionError):
             self.send_message('Такого контента не существует')
 
     def show_content(self):
         content_count = self.handler.get_room_content_count()
         if self.handler.room.name:
-            self.send_message('Открыта комната {}'.format(self.handler.room.name))
+            self.send_message('Открыта комната {}'.format(self.handler.room.name), reply_markup=ReplyKeyboardRemove())
         else:
-            self.send_message('Открыта секретная комната')
+            self.send_message('Открыта секретная комната', reply_markup=ReplyKeyboardRemove())
         if not content_count:
             self.send_message('Пока комната пуста. Пришлите (или перешлите) сюда что-угодно!')
             return
@@ -358,9 +376,9 @@ class ExploreRoomScenario(ReceiveForwardedContentScenario):
         if page_num + 1 < pages_count:
             buttons.append(InlineKeyboardButton('Следующая', callback_data='next'))
         keyboard.add(*buttons)
-        keyboard.add(InlineKeyboardButton('Меню', callback_data='menu'))
+        keyboard.add(InlineKeyboardButton('Главное меню', callback_data='menu'))
         self.send_message('Страница {} из {}'.format(page_num + 1, pages_count),
-                          key=self.TEMP_MESSAGES_KEY, reply_markup=keyboard)
+                          key=self.TEMP_MESSAGES_KEY, reply_markup=keyboard, auto_delete=False)
 
     def _print_content_list(self, items: t.List[DBContent]):
         content_type_method = {
@@ -387,7 +405,6 @@ class ExploreRoomScenario(ReceiveForwardedContentScenario):
         self.add_content()
 
     def to_menu(self):
-        self.delete_current_message()
         self._delete_temp_messages()
         raise RedirectException(MainMenuScenario, MainMenuScenario.open)
 

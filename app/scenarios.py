@@ -126,9 +126,11 @@ class MainMenuScenario(BaseScenario):
         keyboard = InlineKeyboardMarkup()
         for room in rooms:
             keyboard.add(InlineKeyboardButton(room.name, callback_data=room.name))
+        keyboard.add(InlineKeyboardButton('Главное меню', callback_data='open'))
         if len(rooms):
             self.send_message(
-                'Это ваши публичные комнаты\nЧтобы открыть приватную, пришлите ключ текстом', reply_markup=keyboard)
+                'Это ваши публичные комнаты\nЧтобы открыть приватную, пришлите ключ текстом', reply_markup=keyboard,
+                auto_delete=True)
         else:
             self.send_message('У вас нет публичных комнат, чтобы зайти в приватную, пришлите ее ключ',
                               auto_delete=True)
@@ -197,11 +199,13 @@ class ExploreRoomScenario(BaseScenario):
         if content_type in ['photo']:
             file_id = getattr(self.message, content_type)[-1].file_id
 
-        self.handler.add_content(
+        content_id = self.handler.add_content(
             content_type=content_type,
             text=self.text,
             file_id=file_id
         )
+        self.handler.set_message_content_id(self.message.id, content_id)
+
         if self.handler.room.is_private:
             self.delete_current_message()
 
@@ -226,7 +230,6 @@ class ExploreRoomScenario(BaseScenario):
             self.send_message('Такого контента не существует')
 
     def show_content(self):
-        self.delete_current_message()
         content_count = self.handler.get_room_content_count()
         if self.handler.room.name:
             self.send_message('Открыта комната {}'.format(self.handler.room.name))

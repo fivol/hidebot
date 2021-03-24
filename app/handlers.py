@@ -92,12 +92,12 @@ class Handler:
         ).first()
 
     def add_content(self, content_type: str, text: t.Optional[str], file_id: t.Optional[str]):
-        DBContent.create(
+        return DBContent.create(
             room_id=self.room.id,
             content_type=content_type,
             text=text,
             file_id=file_id
-        )
+        ).id
 
     @staticmethod
     def delete_message_content(message_id: int):
@@ -165,3 +165,10 @@ class Handler:
 
     def delete_room(self):
         self.room.delete()
+
+    def set_message_content_id(self, message_id: int, content_id: int):
+        message = DBMessage.query.filter(DBMessage.message_id == message_id).one()
+        if not message:
+            raise ValueError
+        message.content_id = content_id
+        message.save()

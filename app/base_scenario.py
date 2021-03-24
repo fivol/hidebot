@@ -169,7 +169,8 @@ class BaseScenario:
             text=self.text
         )
 
-    def send_message(self, text, *args, reply_markup=None, key=None, auto_delete=False, **kwargs):
+    def send_message(self, text, *args, reply_markup=None, key=None, auto_delete=False, content_id: int = None,
+                     **kwargs):
         if not text:
             return
 
@@ -180,7 +181,7 @@ class BaseScenario:
         reply_markup = reply_markup or self.keyboard
 
         message = self.bot.send_message(self.chat_id, text, *args, reply_markup=reply_markup, **kwargs)
-        self.handler.add_message(message.id, is_from_bot=True, key=key, text=text)
+        self.handler.add_message(message.id, is_from_bot=True, key=key, text=text, content_id=content_id)
         return message
 
     def delete_message(self, message_id: int, delete_from_db=True):

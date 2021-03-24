@@ -38,6 +38,15 @@ class DBRoom(BaseModel):
     name = Column(String, nullable=True)
 
 
+class DBContent(BaseModel):
+    __tablename__ = 'content'
+    id = Column(Integer, primary_key=True)
+    room_id = Column(Integer, ForeignKey('room.id'), nullable=False)
+    content_type = Column(String, nullable=False)
+    text = Column(Text, nullable=True)
+    file_id = Column(String)
+
+
 class DBMessage(BaseModel):
     __tablename__ = 'message'
     id = Column(Integer, primary_key=True)
@@ -46,20 +55,12 @@ class DBMessage(BaseModel):
     member = relationship(DBMember)
     is_from_bot = Column(Boolean, nullable=False)
     content_id = Column(Integer, ForeignKey('content.id'), nullable=True)
+    content = relationship(DBContent, foreign_keys=[content_id])
     text = Column(String, nullable=True)
     key = Column(String, nullable=True)
     __table_args__ = (
         UniqueConstraint('message_id', 'member_id'),
     )
-
-
-class DBContent(BaseModel):
-    __tablename__ = 'content'
-    id = Column(Integer, primary_key=True)
-    room_id = Column(Integer, ForeignKey('room.id'), nullable=False)
-    content_type = Column(String, nullable=False)
-    text = Column(Text, nullable=True)
-    file_id = Column(String)
 
 
 Session: t.Optional[scoped_session] = None
@@ -84,4 +85,4 @@ def stop_session():
 
 
 engine = create_engine(PG_URL, echo=False)
-init_session(engine, drop=TEST)
+init_session(engine, drop=False)

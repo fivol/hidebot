@@ -3,6 +3,8 @@ from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum, auto
 import typing as t
+
+from sqlalchemy.exc import IntegrityError
 from telebot.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, \
     ReplyKeyboardMarkup, KeyboardButton
 
@@ -205,6 +207,24 @@ class ExploreRoomScenario(BaseScenario):
 
         self.send_message('Добавлено', auto_delete=True)
 
+    def delete_content(self):
+        """Удаляет контент из комнаты. Можно переслать сообщение из комнаты и '.' (точкой)"""
+        target_message = self.message.reply_to_message
+        self.delete_current_message()
+        if not target_message:
+            self.send_message('Чтобы удалить что-то из комнаты, перешлите сообщение, добавив точку')
+        try:
+            # Удаляем из 4ех мест. Строку в бд отвечающую удаляемому сообщения
+            # Строку контента. Сообщение-индикатор об удалении (точка) и само сообщение контента
+            result = self.handler.delete_message_content(target_message.id)
+            if result is None:
+                raise AssertionError
+
+            self.delete_message(target_message.id, delete_from_db=False)
+            self.send_message('Удалено', auto_delete=True)
+        except (IntegrityError, AssertionError):
+            self.send_message('Такого контента не существует')
+
     def show_content(self):
         self.delete_current_message()
         content_count = self.handler.get_room_content_count()
@@ -252,13 +272,14 @@ class ExploreRoomScenario(BaseScenario):
             tasks = []
             for item in items:
                 if item.content_type not in content_type_method:
-                    continue
+                    self.send_message('Неподдерживаемый вид контента', auto_delete=True)
+                    return
                 send_method = content_type_method[item.content_type]
                 task = executor.submit(send_method, self.chat_id, item.file_id or item.text, disable_notification=True)
                 tasks.append(task)
-            for task in as_completed(tasks):
+            for task, item in zip(as_completed(tasks), items):
                 message = task.result()
-                self.handler.add_message(message.id, key=self.TEMP_MESSAGES_KEY)
+                self.handler.add_message(message.id, key=self.TEMP_MESSAGES_KEY, content_id=item.id)
 
     def default_response(self):
         self.add_content()
@@ -273,6 +294,11 @@ class ExploreRoomScenario(BaseScenario):
         'prev': prev,
         'menu': to_menu,
         'Главное меню': to_menu,
+        '.': delete_content,
+        '/delete': delete_content,
+        '/del': delete_content,
+        'delete': delete_content,
+        'remove': delete_content,
     }
 
     incoming_key = TEMP_MESSAGES_KEY

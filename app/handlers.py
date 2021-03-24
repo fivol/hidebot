@@ -62,14 +62,15 @@ class Handler:
                 ).on_conflict_do_nothing()
             )
 
-    def add_message(self, message_id, is_from_bot=False, key=None, text=None):
+    def add_message(self, message_id, is_from_bot=False, key=None, text=None, content_id: int = None, **kwargs):
         self.session.execute(
             insert(DBMessage.__table__).values(
                 message_id=message_id,
                 member_id=self.member.id,
                 is_from_bot=is_from_bot,
                 key=key,
-                text=text
+                text=text,
+                content_id=content_id
             ).on_conflict_do_nothing()
         )
 
@@ -97,6 +98,23 @@ class Handler:
             text=text,
             file_id=file_id
         )
+
+    @staticmethod
+    def delete_message_content(message_id: int):
+        """Принимает id сообщение в чате. Удаляет соответствующий ему контент
+        Ищет соответствие в табличке DBMessage
+        Returns True on success and None on Fail
+        """
+        assert isinstance(message_id, int)
+        message = DBMessage.query.filter(DBMessage.message_id == message_id).first()
+        if not message:
+            return None
+        if not message.content:
+            return None
+        content = message.content
+        message.delete()
+        content.delete()
+        return True
 
     def get_public_rooms(self) -> t.List[DBRoom]:
         return DBRoom.query.filter(DBRoom.member == self.member,

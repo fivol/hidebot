@@ -4,7 +4,7 @@ from concurrent.futures.thread import ThreadPoolExecutor
 from enum import Enum, auto
 import typing as t
 from telebot.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, \
-    ReplyKeyboardMarkup, KeyboardButton, Message
+    ReplyKeyboardMarkup, KeyboardButton
 
 from app.base_scenario import BaseScenario, RedirectException
 from app.config import CONTENT_ITEMS_LIMIT
@@ -130,7 +130,7 @@ class MainMenuScenario(BaseScenario):
                               auto_delete=True)
 
     def open(self):
-        self.send_message('Главное меню')
+        self.send_message('Главное меню', auto_delete=True)
 
     def try_open_room(self):
         room = self.handler.get_room(name=self.call_data or self.text, key=self.text)
@@ -142,6 +142,18 @@ class MainMenuScenario(BaseScenario):
 
     def default_response(self):
         self.try_open_room()
+
+    def confirm_delete_room(self):
+        if self.text == self.handler.room.name or self.text == self.handler.room.key:
+            self.handler.delete_room()
+            self.send_message('Комната удалена')
+        else:
+            self.send_message('Имя неверно, удаление отклонено')
+
+    def delete_room(self):
+        self.send_message(
+            'Если вы действительно хотите удалить комнату со всем ее содержимым, пришлите ее название / ключ')
+        self.set_state(self, self.confirm_delete_room)
 
     PUBLIC_ROOM = 'PUBLIC_ROOM'
 
@@ -190,6 +202,8 @@ class ExploreRoomScenario(BaseScenario):
         if self.handler.room.is_private:
             self.delete_current_message()
 
+        self.send_message('Добавлено', auto_delete=True)
+
     def show_content(self):
         self.delete_current_message()
         content_count = self.handler.get_room_content_count()
@@ -221,8 +235,9 @@ class ExploreRoomScenario(BaseScenario):
         if page_num + 1 < pages_count:
             buttons.append(InlineKeyboardButton('Следующая', callback_data='next'))
         keyboard.add(*buttons)
+        keyboard.add(InlineKeyboardButton('Меню', callback_data='menu'))
         self.send_message('Страница {} из {}'.format(page_num + 1, pages_count),
-                          key=self.TEMP_MESSAGES_KEY)
+                          key=self.TEMP_MESSAGES_KEY, reply_markup=keyboard)
 
     def _print_content_list(self, items: t.List[DBContent]):
         content_type_method = {
@@ -252,24 +267,11 @@ class ExploreRoomScenario(BaseScenario):
         self._delete_temp_messages()
         raise RedirectException(MainMenuScenario, MainMenuScenario.open)
 
-    def confirm_delete_room(self):
-        if self.text == self.handler.room.name or self.text == self.handler.room.key:
-            self.handler.delete_room()
-            self.send_message('Комната удалена')
-            self.to_menu()
-        else:
-            self.send_message('Имя неверно, удаление отклонено')
-
-    def delete_room(self):
-        self.send_message(
-            'Если вы действительно хотите удалить комнату со всем ее содержимым, пришлите ее название / ключ')
-        self.set_state(self, self.confirm_delete_room)
-
     routes = {
         'next': next,
         'prev': prev,
+        'menu': to_menu,
         'Главное меню': to_menu,
-        'Удалить комнату': delete_room
     }
 
     incoming_key = TEMP_MESSAGES_KEY

@@ -36,7 +36,7 @@ class HelloScenario(BaseScenario):
 
     def start(self):
         self.send_message(HELLO_MESSAGE, reply_markup=ReplyKeyboardRemove())
-        self.send_message('Теперь создайте свою первую комнату')
+        self.send_message('Теперь создайте свою первую комнату', auto_delete=True)
         raise RedirectException(MainMenuScenario, 'Создать комнату')
 
     def default_response(self):
@@ -61,6 +61,7 @@ class MainMenuScenario(BaseScenario):
         # self.delete_messages(self.handler.get_old_messages())
 
     def create_room(self):
+        self.delete_current_message()
         new_room_keyboard = InlineKeyboardMarkup()
         new_room_keyboard.add(InlineKeyboardButton('Публичную', callback_data='create_public_room'),
                               InlineKeyboardButton('Приватную', callback_data='create_private_room'))
@@ -73,7 +74,7 @@ class MainMenuScenario(BaseScenario):
         self.send_message(text, auto_delete=True)
 
     def create_public_room(self):
-        self.send_message('Введите название комнаты')
+        self.send_message('Введите название комнаты', auto_delete=True)
         self.set_state(self, self.public_room_done)
 
     def public_room_done(self):
@@ -86,6 +87,7 @@ class MainMenuScenario(BaseScenario):
         if not room:
             self.send_message('Невозможно создать комнату (возможно такое название уже существует)')
             return
+        self.delete_current_message()
         self.room_created(name)
 
     def _private_room_done(self):
@@ -126,7 +128,7 @@ class MainMenuScenario(BaseScenario):
             self.send_message(
                 'Это ваши публичные комнаты\nЧтобы открыть приватную, пришлите ключ текстом', reply_markup=keyboard)
         else:
-            self.send_message('У вас нет публичных комнат, чтобы зайти в приватную, пришлите ее ключ текстом',
+            self.send_message('У вас нет публичных комнат, чтобы зайти в приватную, пришлите ее ключ',
                               auto_delete=True)
 
     def open(self):

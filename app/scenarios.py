@@ -64,7 +64,7 @@ class MainMenuScenario(BaseScenario):
         new_room_keyboard = InlineKeyboardMarkup()
         new_room_keyboard.add(InlineKeyboardButton('Публичную', callback_data='create_public_room'),
                               InlineKeyboardButton('Приватную', callback_data='create_private_room'))
-        self.send_message('Хотите создать публичную или приватную?', reply_markup=new_room_keyboard)
+        self.send_message('Хотите создать публичную или приватную?', reply_markup=new_room_keyboard, auto_delete=True)
 
     def room_created(self, name=''):
         text = 'Комната создана'
@@ -166,7 +166,6 @@ class MainMenuScenario(BaseScenario):
 class ExploreRoomScenario(BaseScenario):
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add(KeyboardButton('Главное меню'))
-    keyboard.add(KeyboardButton('Удалить комнату'))
 
     available_content_types = [
         'text', 'photo', 'voice', 'video', 'video_note'
@@ -210,9 +209,9 @@ class ExploreRoomScenario(BaseScenario):
         if self.handler.room.name:
             self.send_message('Открыта комната {}'.format(self.handler.room.name))
         else:
-            self.send_message('Открыта секретная комната ****{}'.format(self.handler.room.key[-1]))
+            self.send_message('Открыта секретная комната')
         if not content_count:
-            self.send_message('Пока комната пуста. Пришлите файлы сюда чтобы добавить')
+            self.send_message('Пока комната пуста. Пришлите (или перешлите) сюда что-угодно!')
             return
         self.print_content_block()
 
@@ -247,7 +246,7 @@ class ExploreRoomScenario(BaseScenario):
             'video': self.bot.send_video,
             'video_note': self.bot.send_video_note,
         }
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             tasks = []
             for item in items:
                 if item.content_type not in content_type_method:

@@ -200,7 +200,7 @@ class BaseScenario:
     def delete_messages(self, messages: t.List[DBMessage]):
         if not messages:
             return
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             for message in messages:
                 executor.submit(self.delete_message, message_id=message.message_id, delete_from_db=False)
         self.handler.delete_messages([m.id for m in messages])

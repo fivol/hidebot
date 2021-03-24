@@ -70,7 +70,7 @@ class MainMenuScenario(BaseScenario):
         text = 'Комната создана'
         if name:
             text = 'Комната "{}" создана'.format(name)
-        self.send_message(text)
+        self.send_message(text, auto_delete=True)
 
     def create_public_room(self):
         self.send_message('Введите название комнаты')
@@ -111,10 +111,13 @@ class MainMenuScenario(BaseScenario):
     def create_private_room(self):
         self.send_message(
             'Введите ключ для приватной комнаты\nВнимание! Его нужно обязательно запомнить. '
-            'Чтоб зайти в комнату, вам нужно будет ввести именно этот ключ', reply_markup=ReplyKeyboardRemove())
+            'Чтоб зайти в комнату, вам нужно будет ввести именно этот ключ', reply_markup=ReplyKeyboardRemove(),
+            auto_delete=True
+        )
         self.set_state(self, self.handle_new_room_key)
 
     def rooms_list(self):
+        self.delete_current_message()
         rooms = self.handler.get_public_rooms()
         keyboard = InlineKeyboardMarkup()
         for room in rooms:
@@ -123,7 +126,8 @@ class MainMenuScenario(BaseScenario):
             self.send_message(
                 'Это ваши публичные комнаты\nЧтобы открыть приватную, пришлите ключ текстом', reply_markup=keyboard)
         else:
-            self.send_message('У вас нет публичных комнат, чтобы зайти в приватную, пришлите ее ключ текстом')
+            self.send_message('У вас нет публичных комнат, чтобы зайти в приватную, пришлите ее ключ текстом',
+                              auto_delete=True)
 
     def open(self):
         self.send_message('Главное меню')
@@ -131,7 +135,7 @@ class MainMenuScenario(BaseScenario):
     def try_open_room(self):
         room = self.handler.get_room(name=self.call_data or self.text, key=self.text)
         if not room:
-            self.send_message('Комната не найдена')
+            self.send_message('Комната не найдена', auto_delete=True)
             return
         self.handler.member.curr_room_id = room.id
         raise RedirectException(ExploreRoomScenario, ExploreRoomScenario.show_content)
@@ -196,12 +200,10 @@ class ExploreRoomScenario(BaseScenario):
         if not content_count:
             self.send_message('Пока комната пуста. Пришлите файлы сюда чтобы добавить')
             return
-        self.send_message('-----------------')
         self.print_content_block()
 
     def _delete_temp_messages(self):
         old_content = self.handler.get_messages_by_key(self.TEMP_MESSAGES_KEY)
-        print(old_content)
         self.delete_messages(old_content)
 
     def print_content_block(self, page_num=0):
@@ -219,7 +221,7 @@ class ExploreRoomScenario(BaseScenario):
         if page_num + 1 < pages_count:
             buttons.append(InlineKeyboardButton('Следующая', callback_data='next'))
         keyboard.add(*buttons)
-        self.send_message('Страница {} из {}'.format(page_num + 1, pages_count), reply_markup=keyboard,
+        self.send_message('Страница {} из {}'.format(page_num + 1, pages_count),
                           key=self.TEMP_MESSAGES_KEY)
 
     def _print_content_list(self, items: t.List[DBContent]):

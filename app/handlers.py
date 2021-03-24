@@ -163,8 +163,11 @@ class Handler:
             DBMessage.id.in_(ids)
         ).delete(synchronize_session=False)
 
-    def delete_room(self):
-        self.room.delete()
+    def delete_room(self, room_id: int):
+        room = DBRoom.query.filter(DBRoom.id == room_id).first()
+        if not room:
+            raise KeyError
+        room.delete()
 
     def set_message_content_id(self, message_id: int, content_id: int):
         message = DBMessage.query.filter(DBMessage.message_id == message_id).one()
@@ -172,3 +175,13 @@ class Handler:
             raise ValueError
         message.content_id = content_id
         message.save()
+
+    def rename_room(self, room_id: int, nickname: str):
+        room = DBRoom.query.filter(DBRoom.id == room_id).first()
+        if not room:
+            raise KeyError
+        if room.is_private:
+            room.key = nickname
+        else:
+            room.name = nickname
+        room.save()

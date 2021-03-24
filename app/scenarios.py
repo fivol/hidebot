@@ -51,16 +51,117 @@ class HelloScenario(BaseScenario):
     }
 
 
-class ReceiveForwardedContentScenario(BaseScenario):
+class RoomsListUtils(BaseScenario):
+    def _send_rooms_list(self):
+        rooms = self.handler.get_public_rooms()
+        keyboard = InlineKeyboardMarkup()
+        for room in rooms:
+            keyboard.add(InlineKeyboardButton(room.name, callback_data=room.name))
+        keyboard.add(InlineKeyboardButton('Назад', callback_data='back'))
+        self.send_message('Пришлите ключ текстом, если хотите указать приватную комнату. Публичные:',
+                          reply_markup=keyboard)
+
     def default_response(self):
         pass
 
 
-class MainMenuScenario(ReceiveForwardedContentScenario):
+class RoomSettingsScenario(RoomsListUtils):
+    keyboard = ReplyKeyboardMarkup(True)
+    keyboard.add(KeyboardButton('Удалить'))
+    keyboard.add(KeyboardButton('Переименовать'))
+    keyboard.add(KeyboardButton('Поменять видимость'))
+    keyboard.add(KeyboardButton('Меню'))
+
+    # Do not use Enum in this
+    class RoomAction:
+        delete = 'DELETE'
+        rename = 'RENAME'
+        change_visibility = 'VISIBILITY'
+
+    def open(self):
+        self.delete_current_message()
+
+        self.send_message('Выберите действие', auto_delete=True)
+
+    def delete_room(self):
+        self._send_rooms_list()
+        self.set_state(action=self.RoomAction.delete)
+
+    def rename_room(self):
+        self._send_rooms_list()
+        self.set_state(action=self.RoomAction.rename)
+
+    def change_visibility(self):
+        self._send_rooms_list()
+        self.set_state(action=self.RoomAction.change_visibility)
+
+    def to_menu(self):
+        raise RedirectException('MainMenuScenario', 'open')
+
+    def _confirm_delete_room(self):
+        if self.call_data == 'yes':
+            self.handler.delete_room(self.state.get('room_id'))
+            self.send_message('Удалена', auto_delete=True)
+        else:
+            self.open()
+
+    def _confirm_rename_room(self):
+        new_name = self.text
+        if not new_name:
+            self.send_message('Нужен новый ключ для комнаты', auto_delete=True)
+
+        self.handler.rename_room(self.state.get('room_id'), new_name)
+        self.send_message('Комната теперь называется {}'.format(new_name))
+
+    def default_response(self):
+        self.delete_current_message()
+        room_key = self.call_data or self.text
+        room = self.handler.get_room(key=room_key, name=room_key)
+        if not room:
+            self.send_message('Такой комнаты не существует')
+            return
+
+        action = self.state.get('action')
+        if action == self.RoomAction.delete:
+            # Проверка, действительно ли пользователь хочет удалить комнату
+            keyboard = InlineKeyboardMarkup()
+            keyboard.add(InlineKeyboardButton('Да', callback_data='yes'),
+                         InlineKeyboardButton('Нет', callback_data='no'))
+            self.set_state(self, self._confirm_delete_room, room_id=room.id)
+            self.send_message('Вы уверены, что хотите безвозвратно удалить комнату {}?'.format(room_key),
+                              reply_markup=keyboard, auto_delete=True)
+        if action == self.RoomAction.rename:
+            # Переименовать комнату
+            self.set_state(self, self._confirm_rename_room, room_id=room.id)
+            self.send_message('Введите новое название (если комната приватная, для нее будет заменен ключ доступа)',
+                              reply_markup=ReplyKeyboardRemove(), auto_delete=True)
+
+    routes = {
+        'back': open,
+        'Удалить': delete_room,
+        'Переименовать': rename_room,
+        'Поменять видимость': change_visibility,
+        'Меню': to_menu,
+    }
+
+
+class ReceiveForwardedContentScenario(BaseScenario):
+
+    def choose_room(self):
+        self.send_message('В какую комнату вы хотите это отправить?')
+
+    def default_response(self):
+        raise RedirectException('MainMenuScenario')
+
+
+class MainMenuScenario(RoomsListUtils):
     keyboard = ReplyKeyboardMarkup(True)
     keyboard.add(
         KeyboardButton('Список комнат'),
+    )
+    keyboard.add(
         KeyboardButton('Создать комнату'),
+        KeyboardButton('Настройки комнат'),
     )
 
     def after(self):
@@ -124,25 +225,11 @@ class MainMenuScenario(ReceiveForwardedContentScenario):
         )
         self.set_state(self, self.handle_new_room_key)
 
-    def rooms_list(self):
-        self.delete_current_message()
-        rooms = self.handler.get_public_rooms()
-        keyboard = InlineKeyboardMarkup()
-        for room in rooms:
-            keyboard.add(InlineKeyboardButton(room.name, callback_data=room.name))
-        keyboard.add(InlineKeyboardButton('Главное меню', callback_data='open'))
-        if len(rooms):
-            self.send_message(
-                'Это ваши публичные комнаты\nЧтобы открыть приватную, пришлите ключ текстом', reply_markup=keyboard,
-                auto_delete=True)
-        else:
-            self.send_message('У вас нет публичных комнат, чтобы зайти в приватную, пришлите ее ключ',
-                              auto_delete=True)
-
     def open(self):
         self.send_message('Главное меню', auto_delete=True)
 
     def try_open_room(self):
+        self.delete_current_message()
         room = self.handler.get_room(name=self.call_data or self.text, key=self.text)
         if not room:
             self.send_message('Комната не найдена', auto_delete=True)
@@ -165,11 +252,19 @@ class MainMenuScenario(ReceiveForwardedContentScenario):
             'Если вы действительно хотите удалить комнату со всем ее содержимым, пришлите ее название / ключ')
         self.set_state(self, self.confirm_delete_room)
 
+    def open_room(self):
+        self.delete_current_message()
+        self._send_rooms_list()
+
+    def to_settings(self):
+        raise RedirectException(RoomSettingsScenario, RoomSettingsScenario.open)
+
     PUBLIC_ROOM = 'PUBLIC_ROOM'
 
     routes = {
         'Создать комнату': create_room,
-        'Список комнат': rooms_list,
+        'Список комнат': open_room,
+        'Настройки комнат': to_settings
     }
 
 

@@ -87,8 +87,8 @@ class RoomsListUtils(BaseScenario):
 class RoomSettingsScenario(RoomsListUtils):
     keyboard = InlineKeyboardMarkup()
     keyboard.add(InlineKeyboardButton('🗑 Удалить', callback_data='Удалить'),
-                 InlineKeyboardButton('Переименовать', callback_data='Переименовать'))
-    keyboard.add(InlineKeyboardButton('Поменять видимость', callback_data='Поменять видимость'))
+                 InlineKeyboardButton('✏ Переименовать', callback_data='Переименовать'))
+    keyboard.add(InlineKeyboardButton('🔑 Поменять видимость', callback_data='Поменять видимость'))
     keyboard.add(InlineButton.menu)
 
     # Do not use Enum in this
@@ -264,10 +264,10 @@ class ContentAddingScenario(RoomsListUtils):
 class MainMenuScenario(ContentAddingScenario):
     keyboard = InlineKeyboardMarkup()
     keyboard.add(
-        InlineKeyboardButton('Список комнат', callback_data='Список комнат'),
+        InlineKeyboardButton('📚 Список комнат', callback_data='Список комнат'),
     )
     keyboard.add(
-        InlineKeyboardButton('Создать комнату', callback_data='Создать комнату'),
+        InlineKeyboardButton('📄 Создать комнату', callback_data='Создать комнату'),
         InlineButton.settings,
     )
     keyboard.add(InlineButton.reference)
@@ -435,9 +435,9 @@ class ExploreRoomScenario(ContentAddingScenario):
     def show_content(self):
         content_count = self.handler.get_room_content_count()
         if self.handler.room.name:
-            self.send_message('Открыта комната {}'.format(self.handler.room.name), reply_markup=ReplyKeyboardRemove())
+            self.send_message('Открыта комната {} 📖'.format(self.handler.room.name), reply_markup=ReplyKeyboardRemove())
         else:
-            self.send_message('Открыта секретная комната', reply_markup=ReplyKeyboardRemove())
+            self.send_message('Открыта секретная комната 🔓', reply_markup=ReplyKeyboardRemove())
         if not content_count:
             self.send_message('Пока комната пуста. Пришлите (или перешлите) сюда что-угодно!')
             return
@@ -463,7 +463,7 @@ class ExploreRoomScenario(ContentAddingScenario):
             buttons.append(InlineKeyboardButton('Следующая ➡', callback_data='next'))
         keyboard.add(*buttons)
         keyboard.add(InlineButton.menu)
-        self.send_message('Страница {} из {}'.format(page_num + 1, pages_count),
+        self.send_message('📑 Страница {} из {}'.format(page_num + 1, pages_count),
                           key=self.TEMP_MESSAGES_KEY, reply_markup=keyboard, auto_delete=False)
 
     def _print_content_list(self, items: t.List[DBContent]):

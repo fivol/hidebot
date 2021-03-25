@@ -36,6 +36,7 @@ class InlineButton:
     menu = InlineKeyboardButton('☰ Главное меню', callback_data='menu')
     reference = InlineKeyboardButton('📕 Справка', callback_data='reference')
     settings = InlineKeyboardButton('⚙ Настройки комнат', callback_data='settings')
+    create_room = InlineKeyboardButton('📄 Создать комнату', callback_data='create_room')
 
 
 class HelloScenario(BaseScenario):
@@ -59,11 +60,14 @@ class HelloScenario(BaseScenario):
 
 
 class RoomsListUtils(BaseScenario):
-    def _send_rooms_list(self):
+    def _send_rooms_list(self, additional_buttons: list = None):
         rooms = self.handler.get_public_rooms()
         keyboard = InlineKeyboardMarkup()
         for room in rooms:
             keyboard.add(InlineKeyboardButton(room.name.capitalize(), callback_data=room.name))
+        if additional_buttons:
+            for btn in additional_buttons:
+                keyboard.add(btn)
         keyboard.add(InlineButton.back)
         self.send_message('Пришлите ключ текстом, если хотите указать приватную комнату. Публичные:',
                           reply_markup=keyboard if len(rooms) else ReplyKeyboardRemove(), auto_delete=True)
@@ -245,9 +249,9 @@ class ContentAddingScenario(RoomsListUtils):
         self.send_message('В какую комнату вы хотите это отправить?',
                           reply_markup=ReplyKeyboardRemove())
         self.set_state(self, self._receive_target_room)
-        self._send_rooms_list()
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('Создать', 'create_room'))
+        self._send_rooms_list(additional_buttons=[
+            InlineButton.create_room
+        ])
 
     def default_response(self):
         raise RedirectException('MainMenuScenario')
@@ -267,7 +271,7 @@ class MainMenuScenario(ContentAddingScenario):
         InlineKeyboardButton('📚 Список комнат', callback_data='Список комнат'),
     )
     keyboard.add(
-        InlineKeyboardButton('📄 Создать комнату', callback_data='Создать комнату'),
+        InlineButton.create_room,
         InlineButton.settings,
     )
     keyboard.add(InlineButton.reference)
@@ -295,12 +299,13 @@ class MainMenuScenario(ContentAddingScenario):
         text = 'Комната создана'
         if name:
             text = 'Комната "{}" создана'.format(name)
-        self.send_message(text, auto_delete=True)
 
         # Если сейчас пользователь в сценарии добавления контента
         if self.state.get('content_id'):
             self.handler.set_content_room(self.state.get('content_id'), room_id)
             self.set_state(content_id=None)
+
+        self.send_message(text, auto_delete=True)
 
     def create_public_room(self):
         self.send_message('Введите название комнаты', auto_delete=True, reply_markup=ReplyKeyboardRemove())
@@ -435,7 +440,8 @@ class ExploreRoomScenario(ContentAddingScenario):
     def show_content(self):
         content_count = self.handler.get_room_content_count()
         if self.handler.room.name:
-            self.send_message('Открыта комната {} 📖'.format(self.handler.room.name), reply_markup=ReplyKeyboardRemove())
+            self.send_message('Открыта комната {} 📖'.format(self.handler.room.name),
+                              reply_markup=ReplyKeyboardRemove())
         else:
             self.send_message('Открыта секретная комната 🔓', reply_markup=ReplyKeyboardRemove())
         if not content_count:

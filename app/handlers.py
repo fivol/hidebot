@@ -66,7 +66,7 @@ class Handler:
         self.session.execute(
             insert(DBMessage.__table__).values(
                 message_id=message_id,
-                member_id=self.member.id,
+                member_id=self.member and self.member.id,
                 is_from_bot=is_from_bot,
                 key=key,
                 text=text,
@@ -99,9 +99,9 @@ class Handler:
             )
         ).first()
 
-    def add_content(self, content_type: str, text: t.Optional[str], file_id: t.Optional[str]):
+    def add_content(self, content_type: str, text: t.Optional[str], file_id: t.Optional[str], room_id: int = None):
         return DBContent.create(
-            room_id=self.room.id,
+            room_id=room_id,
             content_type=content_type,
             text=text,
             file_id=file_id
@@ -148,6 +148,8 @@ class Handler:
         ).order_by(DBMessage.created_at)[:-20]
 
     def get_messages_by_key(self, key: str):
+        if not self.member:
+            return []
         return DBMessage.query.filter(
             DBMessage.member_id == self.member.id,
             DBMessage.key == key,
@@ -186,6 +188,8 @@ class Handler:
 
     def rename_room(self, room_id: int, nickname: str):
         room = DBRoom.query.filter(DBRoom.id == room_id).first()
+        if isinstance(nickname, str):
+            nickname = nickname.lower()
         if not room:
             raise KeyError
         if room.is_private:
@@ -207,3 +211,8 @@ class Handler:
             room.key = room.name
             room.name = None
         room.save()
+
+    def set_content_room(self, content_id: int, room_id: int):
+        content = DBContent.find_or_fail(content_id)
+        content.room_id = room_id
+        content.save()

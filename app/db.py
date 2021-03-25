@@ -41,7 +41,7 @@ class DBRoom(BaseModel):
 class DBContent(BaseModel):
     __tablename__ = 'content'
     id = Column(Integer, primary_key=True)
-    room_id = Column(Integer, ForeignKey('room.id'), nullable=False)
+    room_id = Column(Integer, ForeignKey('room.id'), nullable=True)
     content_type = Column(String, nullable=False)
     text = Column(Text, nullable=True)
     file_id = Column(String)
@@ -85,4 +85,4 @@ def stop_session():
 
 
 engine = create_engine(PG_URL, echo=False)
-init_session(engine, drop=TEST)
+init_session(engine, drop=False)

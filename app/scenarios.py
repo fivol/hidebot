@@ -6,11 +6,11 @@ import typing as t
 
 from sqlalchemy.exc import IntegrityError
 from telebot.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, \
-    InlineKeyboardMarkup, InlineKeyboardButton
+    InlineKeyboardMarkup, InlineKeyboardButton, User
 
-from app.base_scenario import BaseScenario, RedirectException
+from app.base_scenario import BaseScenario, RedirectException, StopSignalException
 from app.config import CONTENT_ITEMS_LIMIT
-from app.constants import HELLO_MESSAGE
+from app.constants import HELLO_MESSAGE, REFERENCE
 from app.db import DBContent
 
 
@@ -63,8 +63,18 @@ class RoomsListUtils(BaseScenario):
         if len(rooms) == 0:
             self.send_message('У вас пока нет ни одной публичной комнаты', reply_markup=keyboard)
 
+    def _accept_chosen_room(self):
+        room_key = self._get_chosen_room_nickname()
+        if self.text and not self.call_data:
+            self.delete_current_message()
+        room = self.handler.get_room(key=room_key, name=room_key)
+        return room
+
+    def _get_chosen_room_nickname(self):
+        return self.call_data or self.text
+
     def default_response(self):
-        pass
+        raise RedirectException('MainMenuScenario')
 
 
 class RoomSettingsScenario(RoomsListUtils):
@@ -124,10 +134,8 @@ class RoomSettingsScenario(RoomsListUtils):
             self.open()
 
     def default_response(self):
-        room_key = self.call_data or self.text
-        if self.text and not self.call_data:
-            self.delete_current_message()
-        room = self.handler.get_room(key=room_key, name=room_key)
+        room = self._accept_chosen_room()
+        room_key = self._get_chosen_room_nickname()
         if not room:
             self.send_message('Такой комнаты не существует', auto_delete=True)
             return
@@ -171,16 +179,70 @@ class RoomSettingsScenario(RoomsListUtils):
     }
 
 
-class ReceiveForwardedContentScenario(BaseScenario):
+class ContentAddingScenario(RoomsListUtils):
+    available_content_types = [
+        'text', 'photo', 'voice', 'video', 'video_note'
+    ]
+
+    def _get_user_name(self, user: User):
+        return user.username or user.first_name
+
+    def _get_author(self):
+        return self.message.forward_signature \
+               or self.message.forward_sender_name \
+               or self.message.forward_from and self._get_user_name(self.message.forward_from) \
+               or self.message.forward_from_chat and self.message.forward_from_chat.username
+
+    def _add_content(self, room_id):
+        if self.message.content_type not in self.available_content_types:
+            self.send_message('Такой тип контента не поддерживается')
+            raise StopSignalException()
+        file_id = None
+        content_type = self.message.content_type
+
+        if content_type in ['voice', 'video', 'video_note']:
+            file_id = getattr(self.message, content_type).file_id
+        if content_type in ['photo']:
+            file_id = getattr(self.message, content_type)[-1].file_id
+
+        author = self._get_author()
+        text = (self.text or self.message.caption or '') + (author and f'\n(от {author})' or '')
+        content_id = self.handler.add_content(
+            content_type=content_type,
+            text=text.strip(),
+            file_id=file_id,
+            room_id=room_id
+        )
+        return content_id
+
+    def _receive_target_room(self):
+        """Пользователь уже выбрал комнату, в которую хочет добавить контент"""
+        room = self._accept_chosen_room()
+        if not room:
+            keyboard = InlineKeyboardMarkup()
+            keyboard.add(InlineKeyboardButton('Создать', callback_data='create_room'),
+                         InlineKeyboardButton('Повторить', callback_data='choose_room'))
+            keyboard.add(InlineKeyboardButton('Главное меню', callback_data='menu'))
+            self.send_message('Комната не найдена', reply_markup=keyboard)
+        else:
+            content_id = self.state.get('content_id')
+            self.handler.set_content_room(content_id, room.id)
+            self.send_message('Добавлено!', reply_markup=ReplyKeyboardRemove())
+            raise RedirectException(MainMenuScenario, MainMenuScenario.open)
 
     def choose_room(self):
-        self.send_message('В какую комнату вы хотите это отправить?')
+        content_id = self._add_content(None)
+        self.set_state(content_id=content_id)
+        self.delete_current_message()
+        self.send_message('В какую комнату вы хотите это отправить?', reply_markup=ReplyKeyboardRemove())
+        self.set_state(self, self._receive_target_room)
+        self._send_rooms_list()
 
     def default_response(self):
         raise RedirectException('MainMenuScenario')
 
 
-class MainMenuScenario(RoomsListUtils):
+class MainMenuScenario(ContentAddingScenario):
     keyboard = InlineKeyboardMarkup()
     keyboard.add(
         InlineKeyboardButton('Список комнат', callback_data='Список комнат'),
@@ -189,9 +251,19 @@ class MainMenuScenario(RoomsListUtils):
         InlineKeyboardButton('Создать комнату', callback_data='Создать комнату'),
         InlineKeyboardButton('Настройки комнат', callback_data='Настройки комнат'),
     )
+    keyboard.add(InlineKeyboardButton('Справка', callback_data='reference'))
 
     def after(self):
         pass
+
+    def show_reference(self):
+        reference_texts = REFERENCE.strip().split('\n\n')
+        for ref_text in reference_texts[:-1]:
+            self.send_message(ref_text, reply_markup=ReplyKeyboardRemove())
+
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineKeyboardButton('Обратно в меню', callback_data='back'))
+        self.send_message(reference_texts[-1], reply_markup=keyboard)
 
     def create_room(self):
         # self.delete_current_message()
@@ -267,7 +339,10 @@ class MainMenuScenario(RoomsListUtils):
         raise RedirectException(ExploreRoomScenario, ExploreRoomScenario.show_content)
 
     def default_response(self):
-        self.try_open_room()
+        if self.message.forward_from or self.message.forward_from_chat or self.message.forward_from_message_id:
+            self.choose_room()
+        else:
+            self.try_open_room()
 
     def open_room(self):
         self._send_rooms_list()
@@ -283,10 +358,11 @@ class MainMenuScenario(RoomsListUtils):
         'Настройки комнат': to_settings,
         'menu': open,
         'back': open,
+        'reference': show_reference
     }
 
 
-class ExploreRoomScenario(ReceiveForwardedContentScenario):
+class ExploreRoomScenario(ContentAddingScenario):
     keyboard = InlineKeyboardMarkup()
     keyboard.add(InlineKeyboardButton('Главное меню', callback_data='Главное меню'))
 
@@ -305,22 +381,7 @@ class ExploreRoomScenario(ReceiveForwardedContentScenario):
         self.print_content_block(self.handler.member.state['page_num'])
 
     def add_content(self):
-        if self.message.content_type not in self.available_content_types:
-            self.send_message('Такой тип контента не поддерживается')
-            return
-        file_id = None
-        content_type = self.message.content_type
-
-        if content_type in ['voice', 'video', 'video_note']:
-            file_id = getattr(self.message, content_type).file_id
-        if content_type in ['photo']:
-            file_id = getattr(self.message, content_type)[-1].file_id
-
-        content_id = self.handler.add_content(
-            content_type=content_type,
-            text=self.text,
-            file_id=file_id
-        )
+        content_id = self._add_content(self.handler.room.id)
         self.handler.set_message_content_id(self.message.id, content_id)
 
         if self.handler.room.is_private:
@@ -395,7 +456,11 @@ class ExploreRoomScenario(ReceiveForwardedContentScenario):
                     self.send_message('Неподдерживаемый вид контента', auto_delete=True)
                     return
                 send_method = content_type_method[item.content_type]
-                task = executor.submit(send_method, self.chat_id, item.file_id or item.text, disable_notification=True)
+                kwargs = {}
+                if item.file_id and item.text:
+                    kwargs['caption'] = item.text
+                task = executor.submit(send_method, self.chat_id, item.file_id or item.text,
+                                       **kwargs, disable_notification=True)
                 tasks.append(task)
             for task, item in zip(as_completed(tasks), items):
                 message = task.result()

@@ -157,7 +157,7 @@ class BaseScenario:
                               chat_id=self.chat_id,
                               user_id=self.message.from_user.id, )
         self.handler.create_member(self.message.from_user)
-        if first_time:
+        if first_time and self.handler.member:
             self._handle_receive_message()
 
     def _handle_receive_message(self):
@@ -180,7 +180,8 @@ class BaseScenario:
 
         reply_markup = reply_markup or self.keyboard
 
-        message = self.bot.send_message(self.chat_id, text, *args, reply_markup=reply_markup, **kwargs)
+        message = self.bot.send_message(self.chat_id, text, *args, reply_markup=reply_markup, parse_mode='Markdown',
+                                        **kwargs)
         self.handler.add_message(message.id, is_from_bot=True, key=key, text=text, content_id=content_id)
         return message
 

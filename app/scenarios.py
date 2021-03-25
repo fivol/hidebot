@@ -31,6 +31,13 @@ class BotSignalType(Enum):
     MEDIA = auto()
 
 
+class InlineButton:
+    back = InlineKeyboardButton('⬅ Назад', callback_data='back')
+    menu = InlineKeyboardButton('☰ Главное меню', callback_data='menu')
+    reference = InlineKeyboardButton('📕 Справка', callback_data='reference')
+    settings = InlineKeyboardButton('⚙ Настройки комнат', callback_data='settings')
+
+
 class HelloScenario(BaseScenario):
 
     def before(self):
@@ -57,7 +64,7 @@ class RoomsListUtils(BaseScenario):
         keyboard = InlineKeyboardMarkup()
         for room in rooms:
             keyboard.add(InlineKeyboardButton(room.name.capitalize(), callback_data=room.name))
-        keyboard.add(InlineKeyboardButton('Назад', callback_data='back'))
+        keyboard.add(InlineButton.back)
         self.send_message('Пришлите ключ текстом, если хотите указать приватную комнату. Публичные:',
                           reply_markup=keyboard if len(rooms) else ReplyKeyboardRemove(), auto_delete=True)
         if len(rooms) == 0:
@@ -65,13 +72,13 @@ class RoomsListUtils(BaseScenario):
 
     def _accept_chosen_room(self):
         room_key = self._get_chosen_room_nickname()
-        if self.text and not self.call_data:
+        if not self.call_data:
             self.delete_current_message()
         room = self.handler.get_room(key=room_key, name=room_key)
         return room
 
     def _get_chosen_room_nickname(self):
-        return self.call_data or self.text
+        return (self.call_data or self.text or '').capitalize()
 
     def default_response(self):
         raise RedirectException('MainMenuScenario')
@@ -79,10 +86,10 @@ class RoomsListUtils(BaseScenario):
 
 class RoomSettingsScenario(RoomsListUtils):
     keyboard = InlineKeyboardMarkup()
-    keyboard.add(InlineKeyboardButton('Удалить', callback_data='Удалить'),
+    keyboard.add(InlineKeyboardButton('🗑 Удалить', callback_data='Удалить'),
                  InlineKeyboardButton('Переименовать', callback_data='Переименовать'))
     keyboard.add(InlineKeyboardButton('Поменять видимость', callback_data='Поменять видимость'))
-    keyboard.add(InlineKeyboardButton('Главное меню', callback_data='Меню'))
+    keyboard.add(InlineButton.menu)
 
     # Do not use Enum in this
     class RoomAction:
@@ -148,7 +155,7 @@ class RoomSettingsScenario(RoomsListUtils):
         if action == self.RoomAction.delete:
             # Проверка, действительно ли пользователь хочет удалить комнату
             self.set_state(self, self._confirm_delete_room, room_id=room.id)
-            self.send_message('Вы уверены, что хотите безвозвратно удалить комнату {}?'.format(room_key),
+            self.send_message('Вы уверены, что хотите безвозвратно удалить комнату "{}"?'.format(room_key),
                               reply_markup=yesno_keyboard, auto_delete=True)
         if action == self.RoomAction.rename:
             # Переименовать комнату
@@ -167,7 +174,7 @@ class RoomSettingsScenario(RoomsListUtils):
             else:
                 self.send_message(
                     'Вы уверены, что хотите сделать комнату "{}" приватной? '
-                    'Ее ключ можно будет поменять = Переименовать)'.format(room_key),
+                    'Ее ключ можно будет переименовать'.format(room_key),
                     reply_markup=yesno_keyboard, auto_delete=True)
 
     routes = {
@@ -176,6 +183,7 @@ class RoomSettingsScenario(RoomsListUtils):
         'Переименовать': rename_room,
         'Поменять видимость': change_visibility,
         'Меню': to_menu,
+        'menu': to_menu,
     }
 
 
@@ -221,8 +229,8 @@ class ContentAddingScenario(RoomsListUtils):
         if not room:
             keyboard = InlineKeyboardMarkup()
             keyboard.add(InlineKeyboardButton('Создать', callback_data='create_room'),
-                         InlineKeyboardButton('Повторить', callback_data='choose_room'))
-            keyboard.add(InlineKeyboardButton('Главное меню', callback_data='menu'))
+                         InlineKeyboardButton('Повторить поиск', callback_data='repeat_choose'))
+            keyboard.add(InlineButton.menu)
             self.send_message('Комната не найдена', reply_markup=keyboard)
         else:
             content_id = self.state.get('content_id')
@@ -234,12 +242,23 @@ class ContentAddingScenario(RoomsListUtils):
         content_id = self._add_content(None)
         self.set_state(content_id=content_id)
         self.delete_current_message()
-        self.send_message('В какую комнату вы хотите это отправить?', reply_markup=ReplyKeyboardRemove())
+        self.send_message('В какую комнату вы хотите это отправить?',
+                          reply_markup=ReplyKeyboardRemove())
         self.set_state(self, self._receive_target_room)
         self._send_rooms_list()
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineKeyboardButton('Создать', 'create_room'))
 
     def default_response(self):
         raise RedirectException('MainMenuScenario')
+
+    def repeat_choose(self):
+        self.send_message('Введите ключ комнаты, если хотите добавить туда')
+        self.set_state(self, self._receive_target_room)
+
+    routes = {
+
+    }
 
 
 class MainMenuScenario(ContentAddingScenario):
@@ -249,9 +268,9 @@ class MainMenuScenario(ContentAddingScenario):
     )
     keyboard.add(
         InlineKeyboardButton('Создать комнату', callback_data='Создать комнату'),
-        InlineKeyboardButton('Настройки комнат', callback_data='Настройки комнат'),
+        InlineButton.settings,
     )
-    keyboard.add(InlineKeyboardButton('Справка', callback_data='reference'))
+    keyboard.add(InlineButton.reference)
 
     def after(self):
         pass
@@ -262,22 +281,26 @@ class MainMenuScenario(ContentAddingScenario):
             self.send_message(ref_text, reply_markup=ReplyKeyboardRemove())
 
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton('Обратно в меню', callback_data='back'))
+        keyboard.add(InlineButton.back)
         self.send_message(reference_texts[-1], reply_markup=keyboard)
 
     def create_room(self):
-        # self.delete_current_message()
         new_room_keyboard = InlineKeyboardMarkup()
-        new_room_keyboard.add(InlineKeyboardButton('Публичную', callback_data='create_public_room'),
-                              InlineKeyboardButton('Приватную', callback_data='create_private_room'))
-        new_room_keyboard.add(InlineKeyboardButton('Главное меню', callback_data='menu'))
+        new_room_keyboard.add(InlineKeyboardButton('📂 Публичную', callback_data='create_public_room'),
+                              InlineKeyboardButton('🔒 Приватную', callback_data='create_private_room'))
+        new_room_keyboard.add(InlineButton.menu)
         self.send_message('Хотите создать публичную или приватную?', reply_markup=new_room_keyboard, auto_delete=True)
 
-    def room_created(self, name=''):
+    def room_created(self, name='', room_id: int = None):
         text = 'Комната создана'
         if name:
             text = 'Комната "{}" создана'.format(name)
         self.send_message(text, auto_delete=True)
+
+        # Если сейчас пользователь в сценарии добавления контента
+        if self.state.get('content_id'):
+            self.handler.set_content_room(self.state.get('content_id'), room_id)
+            self.set_state(content_id=None)
 
     def create_public_room(self):
         self.send_message('Введите название комнаты', auto_delete=True, reply_markup=ReplyKeyboardRemove())
@@ -294,13 +317,13 @@ class MainMenuScenario(ContentAddingScenario):
             self.send_message('Невозможно создать комнату (возможно такое название уже существует)')
             return
         self.delete_current_message()
-        self.room_created(name)
+        self.room_created(name, room.id)
 
     def _private_room_done(self):
         """Пользователь прислал ключ скрытой комнаты"""
         self.delete_current_message()
-        self.handler.create_room(is_private=True, key=self.message.text)
-        self.room_created()
+        room = self.handler.create_room(is_private=True, key=self.message.text)
+        self.room_created(name='', room_id=room.id)
 
     def handle_new_room_key(self):
         key = self.text
@@ -328,7 +351,7 @@ class MainMenuScenario(ContentAddingScenario):
         self.send_message('Главное меню', auto_delete=True)
 
     def try_open_room(self):
-        if self.text and not self.call_data:
+        if not self.call_data:
             self.delete_current_message()
 
         room = self.handler.get_room(name=self.call_data or self.text, key=self.text)
@@ -339,7 +362,8 @@ class MainMenuScenario(ContentAddingScenario):
         raise RedirectException(ExploreRoomScenario, ExploreRoomScenario.show_content)
 
     def default_response(self):
-        if self.message.forward_from or self.message.forward_from_chat or self.message.forward_from_message_id:
+        if self.message.forward_from or self.message.forward_from_chat or self.message.forward_from_message_id \
+                or self.message.forward_signature or self.message.forward_sender_name:
             self.choose_room()
         else:
             self.try_open_room()
@@ -356,6 +380,7 @@ class MainMenuScenario(ContentAddingScenario):
         'Создать комнату': create_room,
         'Список комнат': open_room,
         'Настройки комнат': to_settings,
+        'settings': to_settings,
         'menu': open,
         'back': open,
         'reference': show_reference
@@ -364,7 +389,7 @@ class MainMenuScenario(ContentAddingScenario):
 
 class ExploreRoomScenario(ContentAddingScenario):
     keyboard = InlineKeyboardMarkup()
-    keyboard.add(InlineKeyboardButton('Главное меню', callback_data='Главное меню'))
+    keyboard.add(InlineButton.menu)
 
     available_content_types = [
         'text', 'photo', 'voice', 'video', 'video_note'
@@ -433,11 +458,11 @@ class ExploreRoomScenario(ContentAddingScenario):
         keyboard = InlineKeyboardMarkup()
         buttons = []
         if page_num > 0:
-            buttons.append(InlineKeyboardButton('Предыдущая', callback_data='prev'))
+            buttons.append(InlineKeyboardButton('⬅ Предыдущая', callback_data='prev'))
         if page_num + 1 < pages_count:
-            buttons.append(InlineKeyboardButton('Следующая', callback_data='next'))
+            buttons.append(InlineKeyboardButton('Следующая ➡', callback_data='next'))
         keyboard.add(*buttons)
-        keyboard.add(InlineKeyboardButton('Главное меню', callback_data='menu'))
+        keyboard.add(InlineButton.menu)
         self.send_message('Страница {} из {}'.format(page_num + 1, pages_count),
                           key=self.TEMP_MESSAGES_KEY, reply_markup=keyboard, auto_delete=False)
 

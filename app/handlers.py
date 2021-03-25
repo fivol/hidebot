@@ -213,6 +213,9 @@ class Handler:
         room.save()
 
     def set_content_room(self, content_id: int, room_id: int):
-        content = DBContent.find_or_fail(content_id)
+        content = DBContent.find(content_id)
+        if not content:
+            return None
+
         content.room_id = room_id
         content.save()

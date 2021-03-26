@@ -14,16 +14,6 @@ from app.constants import HELLO_MESSAGE, REFERENCE
 from app.db import DBContent
 
 
-class CallbackQueryData:
-    CREATE_PUBLIC_ROOM = 'public_room'
-    CREATE_PRIVATE_ROOM = 'private_room'
-
-
-class TextCommands:
-    ENTER_ROOM = 'Зайти в комнату'
-    CREATE_ROOM = 'Создать комнату'
-
-
 class BotSignalType(Enum):
     COMMAND = auto()
     PLAIN_TEXT = auto()
@@ -37,6 +27,10 @@ class InlineButton:
     reference = InlineKeyboardButton('📕 Справка', callback_data='reference')
     settings = InlineKeyboardButton('⚙ Настройки комнат', callback_data='settings')
     create_room = InlineKeyboardButton('📄 Создать комнату', callback_data='create_room')
+
+    @staticmethod
+    def with_callback(button: InlineKeyboardButton, callback_data: str):
+        return InlineKeyboardButton(button.text, callback_data=callback_data)
 
 
 class HelloScenario(BaseScenario):
@@ -292,7 +286,7 @@ class MainMenuScenario(ContentAddingScenario):
         new_room_keyboard = InlineKeyboardMarkup()
         new_room_keyboard.add(InlineKeyboardButton('📂 Публичную', callback_data='create_public_room'),
                               InlineKeyboardButton('🔒 Приватную', callback_data='create_private_room'))
-        new_room_keyboard.add(InlineButton.menu)
+        new_room_keyboard.add(InlineButton.back)
         self.send_message('Хотите создать публичную или приватную?', reply_markup=new_room_keyboard, auto_delete=True)
 
     def room_created(self, name='', room_id: int = None):
@@ -314,7 +308,7 @@ class MainMenuScenario(ContentAddingScenario):
 
     def create_public_room(self):
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineButton.back)
+        keyboard.add(InlineButton.with_callback(InlineButton.back, 'create_room'))
         self.send_message('Введите название комнаты', auto_delete=True, reply_markup=keyboard)
         self.set_state(self, self.public_room_done)
 
@@ -353,7 +347,7 @@ class MainMenuScenario(ContentAddingScenario):
 
     def create_private_room(self):
         keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineButton.back)
+        keyboard.add(InlineButton.with_callback(InlineButton.back, 'create_room'))
         self.send_message(
             'Введите ключ для приватной комнаты\nВнимание! Его нужно обязательно запомнить. '
             'Чтоб зайти в комнату, вам нужно будет ввести именно этот ключ', reply_markup=keyboard,
@@ -392,6 +386,7 @@ class MainMenuScenario(ContentAddingScenario):
 
     routes = {
         'Создать комнату': create_room,
+        'create_room': create_room,
         'Список комнат': open_room,
         'Настройки комнат': to_settings,
         'settings': to_settings,

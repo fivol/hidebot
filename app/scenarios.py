@@ -406,6 +406,9 @@ class MainMenuScenario(ContentAddingScenario):
     def to_settings(self):
         raise RedirectException(RoomSettingsScenario, RoomSettingsScenario.open)
 
+    def start(self):
+        pass
+
     PUBLIC_ROOM = 'PUBLIC_ROOM'
 
     routes = {
@@ -416,7 +419,8 @@ class MainMenuScenario(ContentAddingScenario):
         'settings': to_settings,
         'menu': open,
         'back': open,
-        'reference': show_reference
+        'reference': show_reference,
+        '/start': start
     }
 
 

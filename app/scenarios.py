@@ -5,7 +5,7 @@ from enum import Enum, auto
 import typing as t
 
 from sqlalchemy.exc import IntegrityError
-from telebot.types import ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, \
+from telebot.types import ReplyKeyboardRemove, \
     InlineKeyboardMarkup, InlineKeyboardButton, User
 
 from app.base_scenario import BaseScenario, RedirectException, StopSignalException

@@ -178,7 +178,8 @@ class BaseScenario:
         if auto_delete:
             key = SINGLE_SHOW_KEY
 
-        reply_markup = reply_markup or self.keyboard
+        if reply_markup is None:
+            reply_markup = self.keyboard
 
         message = self.bot.send_message(self.chat_id, text, *args, reply_markup=reply_markup, parse_mode='Markdown',
                                         **kwargs)

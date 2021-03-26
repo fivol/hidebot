@@ -1,5 +1,6 @@
 from app.bot import bot
 from app.config import TEST, logger
+from app.db import Session
 
 
 def infinite_pooling():

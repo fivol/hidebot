@@ -315,9 +315,20 @@ class MainMenuScenario(ContentAddingScenario):
     def public_room_done(self):
         """Пользователь прислал название комнаты"""
         name = self.text
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineButton.with_callback(InlineButton.back, 'create_room'))
         if not name:
-            self.send_message('Введите название')
+            self.set_state(self, self.public_room_done)
+            if not self.call_data:
+                self.delete_current_message()
+            self.send_message('Введите название текстом', reply_markup=keyboard)
             return
+        if self.handler.get_room(name=name, key=name) is not None:
+            self.set_state(self, self.public_room_done)
+            self.send_message('Такая комната уже существует. Придумайте другое название', reply_markup=keyboard)
+            return
+
+        self.delete_current_message()
         room = self.handler.create_room(is_private=False, name=name)
         if not room:
             self.send_message('Невозможно создать комнату (возможно такое название уже существует)')

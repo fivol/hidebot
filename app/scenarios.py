@@ -298,19 +298,23 @@ class MainMenuScenario(ContentAddingScenario):
         if self.state.get('content_id'):
             self.handler.set_content_room(self.state.get('content_id'), room_id)
             self.set_state(content_id=None)
+            text += '\nСообщение добавлено!'
+            self.send_message(text, auto_delete=True)
+
             # Если мы сюда попали из пересылаемого сообщения, на этом все заканчивается
             # В противном случае отправляемся в комнату
             return
 
         self.send_message(text, auto_delete=True, reply_markup=ReplyKeyboardRemove())
+
         self.handler.member.curr_room_id = room_id
         raise RedirectException(ExploreRoomScenario, ExploreRoomScenario.show_content)
 
     def create_public_room(self):
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineButton.with_callback(InlineButton.back, 'create_room'))
-        self.send_message('Введите название комнаты', auto_delete=True, reply_markup=keyboard)
         self.set_state(self, self.public_room_done)
+        self.send_message('Введите название комнаты', auto_delete=True, reply_markup=keyboard)
 
     def _new_room_done(self, is_private, name, key):
         """Пользователь прислал название комнаты"""
@@ -372,6 +376,8 @@ class MainMenuScenario(ContentAddingScenario):
         self.set_state(self, self.handle_new_room_key)
 
     def open(self):
+        # Чтобы при создании новой комнаты не было памяти от сброшенной попытки на лету добавить контент
+        self.set_state(content_id=None)
         self.send_message('Главное меню', auto_delete=True)
 
     def try_open_room(self):
@@ -389,8 +395,10 @@ class MainMenuScenario(ContentAddingScenario):
         if self.message.forward_from or self.message.forward_from_chat or self.message.forward_from_message_id \
                 or self.message.forward_signature or self.message.forward_sender_name:
             self.choose_room()
-        else:
+        elif self.call_data or self.message.content_type == 'text':
             self.try_open_room()
+        else:
+            self.choose_room()
 
     def open_room(self):
         self._send_rooms_list()

@@ -313,7 +313,9 @@ class MainMenuScenario(ContentAddingScenario):
         raise RedirectException(ExploreRoomScenario, ExploreRoomScenario.show_content)
 
     def create_public_room(self):
-        self.send_message('Введите название комнаты', auto_delete=True, reply_markup=ReplyKeyboardRemove())
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineButton.back)
+        self.send_message('Введите название комнаты', auto_delete=True, reply_markup=keyboard)
         self.set_state(self, self.public_room_done)
 
     def public_room_done(self):
@@ -350,9 +352,11 @@ class MainMenuScenario(ContentAddingScenario):
         self.set_state(self, self.handle_new_room_key)
 
     def create_private_room(self):
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineButton.back)
         self.send_message(
             'Введите ключ для приватной комнаты\nВнимание! Его нужно обязательно запомнить. '
-            'Чтоб зайти в комнату, вам нужно будет ввести именно этот ключ', reply_markup=ReplyKeyboardRemove(),
+            'Чтоб зайти в комнату, вам нужно будет ввести именно этот ключ', reply_markup=keyboard,
             auto_delete=True
         )
         self.set_state(self, self.handle_new_room_key)

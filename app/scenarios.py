@@ -304,8 +304,13 @@ class MainMenuScenario(ContentAddingScenario):
         if self.state.get('content_id'):
             self.handler.set_content_room(self.state.get('content_id'), room_id)
             self.set_state(content_id=None)
+            # Если мы сюда попали из пересылаемого сообщения, на этом все заканчивается
+            # В противном случае отправляемся в комнату
+            return
 
-        self.send_message(text, auto_delete=True)
+        self.send_message(text, auto_delete=True, reply_markup=ReplyKeyboardRemove())
+        self.handler.member.curr_room_id = room_id
+        raise RedirectException(ExploreRoomScenario, ExploreRoomScenario.show_content)
 
     def create_public_room(self):
         self.send_message('Введите название комнаты', auto_delete=True, reply_markup=ReplyKeyboardRemove())

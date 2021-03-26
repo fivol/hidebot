@@ -312,35 +312,40 @@ class MainMenuScenario(ContentAddingScenario):
         self.send_message('Введите название комнаты', auto_delete=True, reply_markup=keyboard)
         self.set_state(self, self.public_room_done)
 
-    def public_room_done(self):
+    def _new_room_done(self, is_private, name, key):
         """Пользователь прислал название комнаты"""
-        name = self.text
+        nickname = name or key
         keyboard = InlineKeyboardMarkup()
         keyboard.add(InlineButton.with_callback(InlineButton.back, 'create_room'))
-        if not name:
+        if not nickname:
             self.set_state(self, self.public_room_done)
             if not self.call_data:
                 self.delete_current_message()
             self.send_message('Введите название текстом', reply_markup=keyboard)
             return
-        if self.handler.get_room(name=name, key=name) is not None:
+
+        self.delete_current_message()
+        if self.handler.get_room(name=nickname, key=nickname) is not None:
             self.set_state(self, self.public_room_done)
             self.send_message('Такая комната уже существует. Придумайте другое название', reply_markup=keyboard)
             return
 
-        self.delete_current_message()
-        room = self.handler.create_room(is_private=False, name=name)
+        room = self.handler.create_room(is_private=is_private, name=name, key=key)
         if not room:
             self.send_message('Невозможно создать комнату (возможно такое название уже существует)')
             return
-        self.delete_current_message()
-        self.room_created(name, room.id)
+
+        if is_private:
+            self.room_created('', room.id)
+        else:
+            self.room_created(nickname, room.id)
+
+    def public_room_done(self):
+        self._new_room_done(is_private=False, name=self.text, key=None)
 
     def _private_room_done(self):
         """Пользователь прислал ключ скрытой комнаты"""
-        self.delete_current_message()
-        room = self.handler.create_room(is_private=True, key=self.message.text)
-        self.room_created(name='', room_id=room.id)
+        self._new_room_done(is_private=True, name=None, key=self.text)
 
     def handle_new_room_key(self):
         key = self.text

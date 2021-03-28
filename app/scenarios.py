@@ -407,7 +407,7 @@ class MainMenuScenario(ContentAddingScenario):
         raise RedirectException(RoomSettingsScenario, RoomSettingsScenario.open)
 
     def start(self):
-        pass
+        self.open()
 
     PUBLIC_ROOM = 'PUBLIC_ROOM'
 

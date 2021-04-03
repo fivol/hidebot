@@ -161,6 +161,7 @@ class BaseScenario:
             self._handle_receive_message()
 
     def _handle_receive_message(self):
+        logger.info('RECEIVE message id: %s, text: %s', self.message.id, self.message.text)
         self.delete_messages(self.handler.get_messages_by_key(SINGLE_SHOW_KEY))
         if not self.call_data:
             self.handler.add_message(

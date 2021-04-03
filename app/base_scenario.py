@@ -162,12 +162,13 @@ class BaseScenario:
 
     def _handle_receive_message(self):
         self.delete_messages(self.handler.get_messages_by_key(SINGLE_SHOW_KEY))
-        self.handler.add_message(
-            message_id=self.message.id,
-            is_from_bot=False,
-            key=self.incoming_key,
-            text=self.text
-        )
+        if not self.call_data:
+            self.handler.add_message(
+                message_id=self.message.id,
+                is_from_bot=False,
+                key=self.incoming_key,
+                text=self.text
+            )
 
     def send_message(self, text, *args, reply_markup=None, key=None, auto_delete=True, content_id: int = None,
                      **kwargs):

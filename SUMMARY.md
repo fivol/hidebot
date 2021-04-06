@@ -1,4 +1,4 @@
 # Table of contents
 
-* [Краткое описание](README.md)
+* [YourCloudBot](README.md)
 

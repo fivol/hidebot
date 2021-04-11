@@ -27,3 +27,8 @@ ENV_VALID=True # Обязательно именно так, нужно, что�
 BOT_API_KEY= # API_KEY бота в тг. Имеет формат 324324:ijsdfojasdfiodsfj См. BotFather
 PG_URL=postgresql://postgres:postgres@localhost:5432/postgres # Url для обращения к базе данных. Тут приведен пример с локальной
 ```
+
+## Панель администратора
+Из главного меню по команде `/admin` можно попасть в панель админа.
+Для этого твой username должен быть в переменных окружения под ключом
+`ADMIN_USERNAME`

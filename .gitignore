@@ -3,3 +3,4 @@
 *.pyc
 *dev.py
 *.env
+*.idea/

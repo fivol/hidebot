@@ -219,3 +219,21 @@ class Handler:
 
         content.room_id = room_id
         content.save()
+
+    def get_db_describe_info(self) -> dict:
+        s = DBRoom.session
+        return {
+            'members': DBMember.query.count(),
+            'rooms': DBRoom.query.count(),
+            'private rooms': DBRoom.query.filter(DBRoom.is_private).count(),
+            'public rooms': DBRoom.query.filter(DBRoom.is_private == False).count(),
+            'mean rooms count': s.execute(
+                'select round(avg(c), 2) from (select count(*) as c from room group by member_id) t').scalar(),
+            'content': DBContent.query.count()
+        }
+
+    def get_random_rooms_names(self):
+        rows = DBRoom.session.execute(
+            'select coalesce (name, key) as name from room order by random() limit 20'
+        ).fetchall()
+        return [str(row['name']) for row in rows]

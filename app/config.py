@@ -18,6 +18,7 @@ TEST = os.environ.get('TEST')
 
 BOT_API_KEY = os.environ.get('BOT_API_KEY')
 BOT_ID = int(BOT_API_KEY.split(':')[0])
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME')
 
 
 CONTENT_ITEMS_LIMIT = os.environ.get('CONTENT_ITEMS_LIMIT', 5)

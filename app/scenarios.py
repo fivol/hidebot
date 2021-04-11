@@ -9,7 +9,7 @@ from telebot.types import ReplyKeyboardRemove, \
     InlineKeyboardMarkup, InlineKeyboardButton, User
 
 from app.base_scenario import BaseScenario, RedirectException, StopSignalException
-from app.config import CONTENT_ITEMS_LIMIT
+from app.config import CONTENT_ITEMS_LIMIT, ADMIN_USERNAME
 from app.constants import HELLO_MESSAGE, REFERENCE
 from app.db import DBContent
 
@@ -28,12 +28,19 @@ class InlineButton:
     settings = InlineKeyboardButton('⚙ Настройки комнат', callback_data='settings')
     create_room = InlineKeyboardButton('📄 Создать комнату', callback_data='create_room')
 
+    """Кнопки для администратора"""
+    describe = InlineKeyboardButton('Краткая информация', callback_data='describe')
+    random_rooms = InlineKeyboardButton('Случайные названия комнат', callback_data='random_rooms')
+
     @staticmethod
     def with_callback(button: InlineKeyboardButton, callback_data: str):
         return InlineKeyboardButton(button.text, callback_data=callback_data)
 
 
 class HelloScenario(BaseScenario):
+    """
+    Входной сценарий. Активен по умолчанию, используется до нажатия на /start
+    """
 
     def before(self):
         self.handler.create_member(self.message.from_user)
@@ -50,6 +57,41 @@ class HelloScenario(BaseScenario):
 
     routes = {
         '/start': start,
+    }
+
+
+class AdministrateScenario(BaseScenario):
+    """Панель администратора. Вызывает из главного меню командой /menu
+    Предоставляет доступ к статистиками и элементам управления"""
+
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineButton.menu)
+    keyboard.add(InlineButton.describe)
+    keyboard.add(InlineButton.random_rooms)
+
+    def open(self):
+        self.send_message('Панель администратора')
+
+    def to_menu(self):
+        raise RedirectException(MainMenuScenario, MainMenuScenario.open)
+
+    def describe(self):
+        info_dict = self.handler.get_db_describe_info()
+        text = ''
+        for key, value in info_dict.items():
+            text += f'{key.capitalize()}: {value}\n'
+        self.send_message(text)
+
+    def random_rooms(self):
+        names = self.handler.get_random_rooms_names()
+        print(names)
+        self.send_message('\n'.join(names))
+
+    routes = {
+        '/admin': open,
+        'menu': to_menu,
+        InlineButton.describe.callback_data: describe,
+        InlineButton.random_rooms.callback_data: random_rooms
     }
 
 
@@ -413,6 +455,11 @@ class MainMenuScenario(ContentAddingScenario):
     def start(self):
         self.open()
 
+    def to_admin(self):
+        self.delete_current_message()
+        if self.message.from_user and self.message.from_user.username == ADMIN_USERNAME:
+            raise RedirectException(AdministrateScenario, AdministrateScenario.open)
+
     PUBLIC_ROOM = 'PUBLIC_ROOM'
 
     routes = {
@@ -424,7 +471,8 @@ class MainMenuScenario(ContentAddingScenario):
         'menu': open,
         'back': open,
         'reference': show_reference,
-        '/start': start
+        '/start': start,
+        '/admin': to_admin
     }
 
 

@@ -479,7 +479,7 @@ class ExploreRoomScenario(ContentAddingScenario):
         if not content_count:
             self.send_message('Пока комната пуста. Пришлите (или перешлите) сюда что-угодно!')
             return
-        self.print_content_block()
+        self.print_content_block(self.handler.member.state.get('page_num', 0))
 
     def _delete_temp_messages(self):
         old_content = self.handler.get_messages_by_key(self.TEMP_MESSAGES_KEY)

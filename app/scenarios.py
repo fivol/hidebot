@@ -187,26 +187,31 @@ class RoomSettingsScenario(RoomsListUtils):
 
 class ContentAddingScenario(RoomsListUtils):
     available_content_types = [
-        'text', 'photo', 'voice', 'video', 'video_note'
+        'text', 'photo', 'voice', 'video', 'video_note', 'animation', 'document'
     ]
 
+    @classmethod
+    def _extract_username(cls, text):
+        return text and '@' + text
+
     def _get_user_name(self, user: User):
-        return user.username or user.first_name
+        return self._extract_username(user.username) or user.first_name
 
     def _get_author(self):
         return self.message.forward_signature \
                or self.message.forward_sender_name \
                or self.message.forward_from and self._get_user_name(self.message.forward_from) \
-               or self.message.forward_from_chat and self.message.forward_from_chat.username
+               or self.message.forward_from_chat and self._extract_username(self.message.forward_from_chat.username)
 
     def _add_content(self, room_id):
+        print('content type', self.message.content_type, 'avilable:', self.available_content_types)
         if self.message.content_type not in self.available_content_types:
             self.send_message('Такой тип контента не поддерживается')
             raise StopSignalException()
         file_id = None
         content_type = self.message.content_type
 
-        if content_type in ['voice', 'video', 'video_note']:
+        if content_type in ['voice', 'video', 'video_note', 'animation', 'document']:
             file_id = getattr(self.message, content_type).file_id
         if content_type in ['photo']:
             file_id = getattr(self.message, content_type)[-1].file_id
@@ -352,6 +357,8 @@ class MainMenuScenario(ContentAddingScenario):
         self._new_room_done(is_private=True, name=None, key=self.text)
 
     def handle_new_room_key(self):
+        if not self.call_data:
+            self.delete_current_message()
         key = self.text
         if not key:
             self.send_message('Пришлите пароль, его можно будет потом изменить')
@@ -392,10 +399,7 @@ class MainMenuScenario(ContentAddingScenario):
         raise RedirectException(ExploreRoomScenario, ExploreRoomScenario.show_content)
 
     def default_response(self):
-        if self.message.forward_from or self.message.forward_from_chat or self.message.forward_from_message_id \
-                or self.message.forward_signature or self.message.forward_sender_name:
-            self.choose_room()
-        elif self.call_data or self.message.content_type == 'text':
+        if self.call_data or self.message.content_type == 'text':
             self.try_open_room()
         else:
             self.choose_room()
@@ -427,10 +431,6 @@ class MainMenuScenario(ContentAddingScenario):
 class ExploreRoomScenario(ContentAddingScenario):
     keyboard = InlineKeyboardMarkup()
     keyboard.add(InlineButton.menu)
-
-    available_content_types = [
-        'text', 'photo', 'voice', 'video', 'video_note'
-    ]
 
     TEMP_MESSAGES_KEY = 'temp-content'
 
@@ -510,7 +510,9 @@ class ExploreRoomScenario(ContentAddingScenario):
             'photo': self.bot.send_photo,
             'voice': self.bot.send_voice,
             'video': self.bot.send_video,
+            'document': self.bot.send_document,
             'video_note': self.bot.send_video_note,
+            'animation': self.bot.send_animation,
         }
         with ThreadPoolExecutor(max_workers=20) as executor:
             tasks = []

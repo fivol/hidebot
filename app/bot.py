@@ -29,7 +29,7 @@ class BotMessagesRouter:
 
     @staticmethod
     @bot.message_handler(
-        content_types=['audio', 'photo', 'voice', 'video', 'sticker', 'contact', 'location',
+        content_types=['audio', 'photo', 'voice', 'video', 'sticker', 'contact', 'location', 'animation',
                        'document', 'text', 'video_note', 'left_chat_member', 'new_chat_members'])
     def main_handler(message: Message):
         ScenarioRunner.process_signal(

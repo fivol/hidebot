@@ -46,7 +46,7 @@ class HelloScenario(BaseScenario):
         self.handler.create_member(self.message.from_user)
 
     def start(self):
-        self.send_message(HELLO_MESSAGE, reply_markup=ReplyKeyboardRemove())
+        self.send_message(HELLO_MESSAGE, reply_markup=ReplyKeyboardRemove(), auto_delete=False)
         self.send_message('Теперь создайте свою первую комнату', auto_delete=True)
         raise RedirectException(MainMenuScenario, 'Создать комнату')
 

@@ -4,3 +4,4 @@
 *dev.py
 *.env
 *.idea/
+venv

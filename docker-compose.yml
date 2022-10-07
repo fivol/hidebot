@@ -6,5 +6,5 @@ services:
     network_mode: host
     environment:
       PG_URL: postgresql://postgres:***REMOVED***@db.example.com:5432/random_message
-      ENV_VALID: true
+      ENV_VALID: "true"
       BOT_API_KEY: ***REMOVED***

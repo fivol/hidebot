@@ -1,34 +1,41 @@
-## YourCloudBot 
-### Документация для разработчиков
+# Developer notes
 
-Описание функционала находится [тут](../README.md)
+The product description lives in [../README.md](../README.md); the original
+Russian one is at [README.ru.md](README.ru.md).
 
-## Релиз
-Бот работает на `heroku.com`
-на аккаунте `borisoffficial@gmail.com`
+## Environment
 
-Команда
-```shell
-./upload_heroku
-```
-Обновляет удаленную версию. Перед этим необходимо закомитить локальные изменения
+Copy `.env.example` to `.env` and fill it in. Every variable the code reads:
 
-## Разработка
-В файле `.env` содержатся необходимые переменные для локально запуска. 
+| Variable | Required | What it is |
+|---|---|---|
+| `ENV_VALID` | yes | Must be `True`. `config.py` exits unless it is set — a deliberate tripwire so a half-filled environment fails loudly. Set it last |
+| `BOT_API_KEY` | yes | Telegram bot token from @BotFather; the bot id is derived from it |
+| `PG_URL` | yes | `postgresql://user:pass@host:5432/db` |
+| `ADMIN_USERNAME` | no | Telegram username allowed into `/admin` |
+| `CONTENT_ITEMS_LIMIT` | no | Items shown per page inside a room (default 5) |
+| `TEST` | no | Test mode: the bot talks to `bot_mock_driver` instead of Telegram |
 
-Они рассчитаны на то, что поднят postgres сервер локально с базой данных postgres.
-Этот файл содержится в `.gitignore` так как в продакшине используются другие переменные окружени
-Они установлены непосредственно на `heroku.com`
+## Running
 
-Вот необходимые список
-```shell
-TEST=True # Можно не указывать
-ENV_VALID=True # Обязательно именно так, нужно, чтобы удостовериться в всех переменных окружения. Выставляется в последнюю очередь
-BOT_API_KEY= # API_KEY бота в тг. Имеет формат 324324:ijsdfojasdfiodsfj См. BotFather
-PG_URL=postgresql://postgres:postgres@localhost:5432/postgres # Url для обращения к базе данных. Тут приведен пример с локальной
+```bash
+pipenv install && pipenv run python main.py
+docker compose up -d --build     # app + PostgreSQL
 ```
 
-## Панель администратора
-Из главного меню по команде `/admin` можно попасть в панель админа.
-Для этого твой username должен быть в переменных окружения под ключом
-`ADMIN_USERNAME`
+## Tests
+
+```bash
+pipenv run pytest
+```
+
+`bot_mock_driver.py` stands in for the Telegram API, so `tests/` walks whole
+scenarios — creating a room, entering a key, storing content — without a
+network or a bot token.
+
+## Scenario engine
+
+A scenario is a sequence of steps declared in `scenarios.py` on top of
+`base_scenario.py`. `scenario_runner.py` keeps a user's position in the flow in
+the database, so a conversation survives a restart. Adding a flow means adding
+a scenario, not another branch in the handler.
